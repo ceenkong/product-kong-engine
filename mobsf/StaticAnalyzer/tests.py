@@ -1133,19 +1133,12 @@ class ApkEditorTemplateTests(TestCase):
                 },
             )
 
-    def test_android_binary_template_contains_editor_mount(self):
+    def test_android_binary_template_does_not_contain_editor_mount(self):
         html = self._render_android_binary_report()
 
-        self.assertIn('id="apk-editor"', html)
-        self.assertIn('data-start-url="/apk_editor/start/"', html)
-        self.assertIn('data-discard-url="/apk_editor/discard/"', html)
-        self.assertIn('data-frida-url="/apk_editor/frida_gadget/"', html)
-        self.assertIn('data-obfuscate-url="/apk_editor/obfuscate/"', html)
-        self.assertIn('data-save-url="/apk_editor/save/"', html)
-        self.assertIn('data-download-url="/apk_editor/download/"', html)
-        self.assertIn('data-logs-url="/apk_editor/logs/"', html)
-        self.assertIn('others/js/apk_editor.js', html)
-        self.assertIn('编辑 APK', html)
+        self.assertNotIn('id="apk-editor"', html)
+        self.assertNotIn('data-start-url="/apk_editor/start/"', html)
+        self.assertNotIn('others/js/apk_editor.js', html)
 
     def test_android_binary_template_hides_editor_for_non_apk(self):
         html = self._render_android_binary_report(app_type='so')
