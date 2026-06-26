@@ -54,6 +54,8 @@ services:
       - POSTGRES_PORT=5432
     depends_on:
       - postgres
+    healthcheck:
+      disable: true
     networks:
       - mobsf_network
 

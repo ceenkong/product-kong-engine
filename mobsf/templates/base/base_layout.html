@@ -1,10 +1,11 @@
-{% load static %}
+{% load static i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!DOCTYPE html>
-<html>
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>{{title}}</title>
+  <title>{% trans title %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Mobile Security Framework - MobSF">
   <meta name="author" content="Ajin Abraham">
@@ -65,10 +66,10 @@
 
   <!-- /.content-wrapper -->
   <footer class="main-footer">
-    <strong>© {% now "Y" %} Mobile Security Framework - MobSF | <a href="https://ajinabraham.com">Ajin Abraham</a> | <a href="https://opensecurity.in">OpenSecurity</a>.</strong>
-    <div class="float-right d-none d-sm-inline-block">
-      <b>Version</b> {{ version }}
-    </div>
+	    <strong>© {% now "Y" %} {% trans "Mobile Security Framework - MobSF" %} | <a href="https://ajinabraham.com">Ajin Abraham</a> | <a href="https://opensecurity.in">OpenSecurity</a>.</strong>
+	    <div class="float-right d-none d-sm-inline-block">
+	      <b>{% trans "Version" %}</b> {{ version }}
+	    </div>
   </footer>
 
   <!-- Control Sidebar -->

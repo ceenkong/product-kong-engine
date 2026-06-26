@@ -1,6 +1,6 @@
 
 {% extends "base/base_layout.html" %}
-{% load static %}
+{% load static i18n %}
  {% block sidebar_option %}
       sidebar-collapse
 {% endblock %}
@@ -34,10 +34,10 @@
 
                  <div class="box">
         <div class="box-header with-border">
-            <h3 class="box-title"><i class="fa fa-rocket"></i> Recent Scans</h3>
-            {% if async_scans %}
-            <p class="lead">View scan progress in the <strong><a href="{% url 'list_tasks' %}">Scan Queue</a></strong></p>
-            {% endif %}
+	            <h3 class="box-title"><i class="fa fa-rocket"></i> {% trans "Recent Scans" %}</h3>
+	            {% if async_scans %}
+	            <p class="lead">{% trans "View scan progress in the" %} <strong><a href="{% url 'list_tasks' %}">{% trans "Scan Queue" %}</a></strong></p>
+	            {% endif %}
         </div>
 
         <div class="box-body">
@@ -45,12 +45,12 @@
                 <table class="table table-bordered table-hover table-striped">
                     <thead>
                     <tr>
-                        <th>APP</th>
-                        <th>FILE</th>
-                        <th>TYPE</th>
-                        <th>HASH</th>
-                        <th>SCAN DATE</th>
-                        <th style="width: 9%">ACTIONS</th>
+	                        <th>{% trans "APP" %}</th>
+	                        <th>{% trans "FILE" %}</th>
+	                        <th>{% trans "TYPE" %}</th>
+	                        <th>{% trans "HASH" %}</th>
+	                        <th>{% trans "SCAN DATE" %}</th>
+	                        <th style="width: 9%">{% trans "ACTIONS" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -65,22 +65,22 @@
                                   {% if e.FILE_NAME|slice:"-5:" != '.appx' %}
                                     {% if e.FILE_NAME|slice:"-3:" != '.so' %}
                                       {% if e.FILE_NAME|slice:"-2:" != '.a' %}
-                                    <p> <a href="{% url "appsec_dashboard" checksum=e.MD5 %}" class="btn btn-sm btn-outline-primary" role="button"><i class="fas fa-user-shield"></i> MobSF Scorecard</a></p>
+	                                    <p> <a href="{% url "appsec_dashboard" checksum=e.MD5 %}" class="btn btn-sm btn-outline-primary" role="button"><i class="fas fa-user-shield"></i> {% trans "MobSF Scorecard" %}</a></p>
                                       {% endif %}
                                     {% endif %}
                                     {% endif %}
                                   {% endif %}
-                                  <p><a class="btn btn-primary btn-sm" href="../../../{{ e.ANALYZER }}/{{e.MD5}}/"><i class="fas fa-eye"></i> Static Report</a>
+	                                  <p><a class="btn btn-primary btn-sm" href="../../../{{ e.ANALYZER }}/{{e.MD5}}/"><i class="fas fa-eye"></i> {% trans "Static Report" %}</a>
                                   {% if '.apk' == e.FILE_NAME|slice:"-4:" or '.xapk' == e.FILE_NAME|slice:"-5:" or '.apks' == e.FILE_NAME|slice:"-5:" or '.aab' == e.FILE_NAME|slice:"-4:" %}
-                                    <a  class="btn btn-success btn-sm {% if not e.DYNAMIC_REPORT_EXISTS %}disabled{% endif %}" href="{% url "dynamic_report" checksum=e.MD5 %}"><i class="fa fa-mobile"></i> Dynamic Report</a>
+	                                    <a  class="btn btn-success btn-sm {% if not e.DYNAMIC_REPORT_EXISTS %}disabled{% endif %}" href="{% url "dynamic_report" checksum=e.MD5 %}"><i class="fa fa-mobile"></i> {% trans "Dynamic Report" %}</a>
                                   {% elif '.ipa' == e.FILE_NAME|slice:"-4:" %}
                                     {% if e.PACKAGE_NAME %}
-                                        <a  class="btn btn-success btn-sm {% if not e.DYNAMIC_REPORT_EXISTS %}disabled{% endif %}" href="{% url "ios_view_report" bundle_id=e.PACKAGE_NAME %}"><i class="fa fa-mobile"></i> Dynamic Report</a>
+	                                        <a  class="btn btn-success btn-sm {% if not e.DYNAMIC_REPORT_EXISTS %}disabled{% endif %}" href="{% url "ios_view_report" bundle_id=e.PACKAGE_NAME %}"><i class="fa fa-mobile"></i> {% trans "Dynamic Report" %}</a>
                                     {% endif %}
                                   {% endif %}
                                   </p>
                                 {% else %}
-                                </br><span class="badge bg-warning">scan not completed</span>
+	                                </br><span class="badge bg-warning">{% trans "scan not completed" %}</span>
                                 {% endif %}
                             </td>
                             <td>{{ e.FILE_NAME }}
@@ -108,10 +108,10 @@
                                    <a class="btn btn-outline-secondary btn-sm" href="{% url "download_binary" checksum=e.MD5%}"><i class="fas fa-download"></i></a>
                                 </p>
                             {% if '.apk' == e.FILE_NAME|slice:"-4:" or '.xapk' == e.FILE_NAME|slice:"-5:" or '.apks' == e.FILE_NAME|slice:"-5:" or '.aab' == e.FILE_NAME|slice:"-4:"%}
-                                <p><a class="diffButton btn btn-warning btn-sm" id="{{ e.MD5 }}_{{ e.FILE_NAME }}"><i class="fas fa-not-equal"></i> Diff or Compare</a>
+	                                <p><a class="diffButton btn btn-warning btn-sm" id="{{ e.MD5 }}_{{ e.FILE_NAME }}"><i class="fas fa-not-equal"></i> {% trans "Diff or Compare" %}</a>
                                 </p>
                             {% endif %}
-                            <p> <a class="btn btn-danger btn-sm" id="{{ e.MD5 }}" onclick="delete_scan(this)" href="#"><i class="fa fa-trash"></i> Delete Scan</a> </p>
+	                            <p> <a class="btn btn-danger btn-sm" id="{{ e.MD5 }}" onclick="delete_scan(this)" href="#"><i class="fa fa-trash"></i> {% trans "Delete Scan" %}</a> </p>
                             </td>
                         </tr>
                     {% endfor %}
@@ -123,11 +123,11 @@
                 <ul class="pagination justify-content-center">
                   {% if page_obj.has_previous %}
                   <li class="page-item">
-                    <a class="page-link" href="{% url 'scans_paginated' page_size=page_obj.page_size page_number=page_obj.previous_page_number %}">Previous</a>
+	                    <a class="page-link" href="{% url 'scans_paginated' page_size=page_obj.page_size page_number=page_obj.previous_page_number %}">{% trans "Previous" %}</a>
                   </li>   
                   {% else %}
                   <li class="page-item">
-                  <a class="page-link">Previous</a>
+	                  <a class="page-link">{% trans "Previous" %}</a>
                   </li>
                   {% endif %}
       
@@ -145,17 +145,17 @@
       
                   {% if page_obj.has_next %}
                   <li class="page-item">
-                    <a class="page-link" href="{% url 'scans_paginated' page_size=page_obj.page_size page_number=page_obj.next_page_number %}">Next</a>
+	                    <a class="page-link" href="{% url 'scans_paginated' page_size=page_obj.page_size page_number=page_obj.next_page_number %}">{% trans "Next" %}</a>
                    </li>
                   {% else %}
                   <li class="page-item">
-                    <a class="page-link">Next</a>
+	                    <a class="page-link">{% trans "Next" %}</a>
                   </li>
                   {% endif %}
                   <li class="page-item">
                     <div class="dropdown">
                         <button class="page-link dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                          Items per page
+	                          {% trans "Items per page" %}
                         </button>
                         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
                           <a class="dropdown-item" href="{% url 'scans_paginated' page_size=5 page_number=page_obj.number %}">5</a>
@@ -226,12 +226,12 @@
     // First pop up only saves the first scan to diff and tells the user to select a partner
     function diff_select(item) {
 
-        Swal.fire({
-            title: '<strong>Select App to Compare</strong>',
-            type: 'info',
-            text: 'Please select the second scan result for comparison',
-            timer: 10000
-        });
+	        Swal.fire({
+	            title: '<strong>{% trans "Select App to Compare" %}</strong>',
+	            type: 'info',
+	            text: '{% trans "Please select the second scan result for comparison" %}',
+	            timer: 10000
+	        });
         diff_first_md5 = item.attr('id').slice(0, 32);
         diff_first_name = item.attr('id').slice(33);
         item.closest("tr").addClass("selected");
@@ -262,17 +262,17 @@
         diff_second_md5 = selected_md5;
         diff_second_name = rows_tds[1].innerText;
 
-        Swal.fire({
-            title: '<strong>Diff confirmation</strong>',
-            type: 'info',
-            html:
-                '<strong>Do you want to diff - </strong><br />' + escapeHtml(diff_first_name) +
-                '<br /> <strong>with - <br /> </strong>' + escapeHtml(diff_second_name) + ' <br /> <strong>?</strong>',
+	        Swal.fire({
+	            title: '<strong>{% trans "Diff confirmation" %}</strong>',
+	            type: 'info',
+	            html:
+	                '<strong>{% trans "Do you want to diff -" %} </strong><br />' + escapeHtml(diff_first_name) +
+	                '<br /> <strong>{% trans "with -" %} <br /> </strong>' + escapeHtml(diff_second_name) + ' <br /> <strong>?</strong>',
 
-            showCancelButton: true,
-            cancelButtonText: 'Cancel',
-            confirmButtonText: 'Start Diffing!',
-        }).then((result) => {
+	            showCancelButton: true,
+	            cancelButtonText: '{% trans "Cancel" %}',
+	            confirmButtonText: '{% trans "Start Diffing!" %}',
+	        }).then((result) => {
             if (result.value) {
                 window.location = '/compare/' + diff_first_md5 + '/' + diff_second_md5 + '/';
             } else {
@@ -281,14 +281,14 @@
         })
     }
 
-    function delete_scan(item){
-      Swal.fire({
-      title: 'Are you sure?',
-      text: "This will permanently remove the scan results from MobSF",
-      type: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Yes',
-      cancelButtonText: 'No',
+	    function delete_scan(item){
+	      Swal.fire({
+	      title: '{% trans "Are you sure?" %}',
+	      text: "{% trans 'This will permanently remove the scan results from MobSF' %}",
+	      type: 'warning',
+	      showCancelButton: true,
+	      confirmButtonText: '{% trans "Yes" %}',
+	      cancelButtonText: '{% trans "No" %}',
       confirmButtonColor: '#d33',
       cancelButtonColor: '#2da532',
     }).then((result) => {
@@ -303,28 +303,28 @@
                                 md5: md5_hash,
                                 },
                             success : function(json) {
-                                if (json.deleted ==='yes'){
-                                    Swal.fire(
-                                        'Deleted!',
-                                        'The scan result is deleted!',
-                                        'success'
-                                    ).then(function () {
+	                                if (json.deleted ==='yes'){
+	                                    Swal.fire(
+	                                        '{% trans "Deleted!" %}',
+	                                        '{% trans "The scan result is deleted!" %}',
+	                                        'success'
+	                                    ).then(function () {
                                         location.reload();
                                     })
                                 }
-                                else {
-                                    Swal.fire(
-                                    'Delete Failed',
-                                    json.deleted,
-                                    'error'
-                                    )
+	                                else {
+	                                    Swal.fire(
+	                                    '{% trans "Delete Failed" %}',
+	                                    json.deleted,
+	                                    'error'
+	                                    )
                                 }
                             },
-                            error : function(xhr,errmsg,err) {
-                                Swal.fire(
-                                    'Delete Failed',
-                                    errmsg,
-                                    'error'
+	                            error : function(xhr,errmsg,err) {
+	                                Swal.fire(
+	                                    '{% trans "Delete Failed" %}',
+	                                    errmsg,
+	                                    'error'
                                     )
                             }
                 });

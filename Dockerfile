@@ -82,7 +82,7 @@ RUN \
 WORKDIR /home/mobsf/Mobile-Security-Framework-MobSF
 COPY . .
 
-HEALTHCHECK CMD curl --fail http://host.docker.internal:8000/ || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:8000/login/ || exit 1
 
 # Expose MobSF Port and Proxy Port
 EXPOSE 8000 1337
