@@ -899,6 +899,45 @@ class ApkEditorEndpointTests(TestCase):
         )
 
 
+class ApkEditorTemplateTests(TestCase):
+    """APK editor template tests."""
+
+    def _render_android_binary_report(self, app_type='apk'):
+        from django.template.loader import render_to_string
+        from django.utils import translation
+
+        with translation.override('zh-hans'):
+            return render_to_string(
+                'static_analysis/android_binary_analysis.html',
+                {
+                    'md5': 'a' * 32,
+                    'app_type': app_type,
+                    'title': 'Android Binary Analysis',
+                    'version': 'test',
+                    'exported_count': {},
+                    'activities': [],
+                    'services': [],
+                    'receivers': [],
+                    'providers': [],
+                },
+            )
+
+    def test_android_binary_template_contains_editor_mount(self):
+        html = self._render_android_binary_report()
+
+        self.assertIn('id="apk-editor"', html)
+        self.assertIn('data-start-url="/apk_editor/start/"', html)
+        self.assertIn('data-discard-url="/apk_editor/discard/"', html)
+        self.assertIn('others/js/apk_editor.js', html)
+        self.assertIn('编辑 APK', html)
+
+    def test_android_binary_template_hides_editor_for_non_apk(self):
+        html = self._render_android_binary_report(app_type='so')
+
+        self.assertNotIn('id="apk-editor"', html)
+        self.assertNotIn('others/js/apk_editor.js', html)
+
+
 class ApkEditorWorkspaceTests(TestCase):
     """APK editor workspace and command tests."""
 

@@ -1,0 +1,50 @@
+{% load i18n static %}
+{% if app_type == 'apk' %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-lg-12">
+        <div class="card" id="apk-editor"
+             data-hash="{{ md5 }}"
+             data-start-url="{% url 'apk_editor_start' %}"
+             data-discard-url="{% url 'apk_editor_discard' %}"
+             data-msg-starting="{% trans 'Entering edit mode' %}"
+             data-msg-start-failed="{% trans 'Failed to enter edit mode' %}"
+             data-msg-editing="{% trans 'Editing. All operations will be saved to the current session.' %}"
+             data-msg-no-session="{% trans 'No active editor session' %}"
+             data-msg-discard-failed="{% trans 'Failed to discard edit session' %}"
+             data-msg-discarded="{% trans 'Edit session discarded' %}">
+          <div class="card-body">
+            <p><strong><i class="fas fa-edit"></i> {% trans 'APK Editor' %}</strong></p>
+            <div id="apk-editor-status" class="alert alert-secondary">
+              {% trans 'Not editing' %}
+            </div>
+            <div class="btn-group flex-wrap" role="group">
+              <button type="button" class="btn btn-primary" id="apk-editor-start">
+                <i class="fas fa-edit"></i> {% trans 'Edit APK' %}
+              </button>
+              <button type="button" class="btn btn-info" id="apk-editor-frida" disabled>
+                <i class="fas fa-plug"></i> {% trans 'Inject Frida Gadget' %}
+              </button>
+              <button type="button" class="btn btn-warning" id="apk-editor-obfuscate" disabled>
+                <i class="fas fa-random"></i> {% trans 'Run Obfuscation' %}
+              </button>
+              <button type="button" class="btn btn-success" id="apk-editor-save" disabled>
+                <i class="fas fa-save"></i> {% trans 'Save' %}
+              </button>
+              <button type="button" class="btn btn-danger" id="apk-editor-discard" disabled>
+                <i class="fas fa-trash"></i> {% trans 'Discard Edit' %}
+              </button>
+              <a class="btn btn-secondary disabled" id="apk-editor-download" href="#">
+                <i class="fas fa-download"></i> {% trans 'Download Edited APK' %}
+              </a>
+            </div>
+            <pre class="mt-3 d-none" id="apk-editor-log"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<script src="{% static 'others/js/apk_editor.js' %}"></script>
+{% endif %}

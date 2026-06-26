@@ -214,3 +214,45 @@ msgstr "扫描结果已删除！"
 
 msgid "Delete Failed"
 msgstr "删除失败"
+
+msgid "APK Editor"
+msgstr "APK 编辑器"
+
+msgid "Not editing"
+msgstr "未进入编辑状态"
+
+msgid "Edit APK"
+msgstr "编辑 APK"
+
+msgid "Inject Frida Gadget"
+msgstr "注入 Frida Gadget"
+
+msgid "Run Obfuscation"
+msgstr "执行混淆"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Discard Edit"
+msgstr "放弃编辑"
+
+msgid "Download Edited APK"
+msgstr "下载编辑后的 APK"
+
+msgid "Entering edit mode"
+msgstr "正在进入编辑状态"
+
+msgid "Failed to enter edit mode"
+msgstr "进入编辑状态失败"
+
+msgid "Editing. All operations will be saved to the current session."
+msgstr "正在编辑，所有操作会保存到当前会话。"
+
+msgid "No active editor session"
+msgstr "没有活动的编辑会话"
+
+msgid "Failed to discard edit session"
+msgstr "放弃编辑失败"
+
+msgid "Edit session discarded"
+msgstr "已放弃编辑"
