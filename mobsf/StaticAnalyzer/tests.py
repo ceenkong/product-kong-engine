@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 from mobsf.MobSF.init import api_key
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.test import Client, TestCase
 
@@ -680,6 +681,222 @@ class ApkEditorModelAndPathTests(TestCase):
         self.assertFalse(session.dirty)
         self.assertEqual(session.operation_metadata, {})
         self.assertEqual(session.last_error, '')
+
+
+class ApkEditorEndpointTests(TestCase):
+    """APK editor JSON endpoint tests."""
+
+    def setUp(self):
+        self.auth = api_key(settings.MOBSF_HOME)
+        self.http_client = Client()
+
+    def _session_json(self, source_md5='a' * 32, session_id='session-123'):
+        return {
+            'status': 'ok',
+            'hash': source_md5,
+            'session_id': session_id,
+            'state': 'active',
+            'dirty': False,
+            'output_apk': '',
+            'last_error': '',
+            'operation_metadata': {},
+        }
+
+    def _login_superuser(self, client=None):
+        client = client or self.http_client
+        user = get_user_model().objects.create_superuser(
+            username='apk-editor-admin',
+            email='apk-editor-admin@example.com',
+            password='password',
+        )
+        client.force_login(user)
+
+    def _login_regular_user(self, client=None):
+        client = client or self.http_client
+        user = get_user_model().objects.create_user(
+            username='apk-editor-user',
+            email='apk-editor-user@example.com',
+            password='password',
+        )
+        client.force_login(user)
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.start_session')
+    def test_api_start_requires_hash(self, start_session_mock):
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/start',
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(json.loads(resp.content), {'error': 'Missing hash'})
+        start_session_mock.assert_not_called()
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.start_session')
+    def test_api_start_returns_session_json(self, start_session_mock):
+        source_md5 = 'b' * 32
+        start_session_mock.return_value = self._session_json(source_md5)
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/start',
+            {'hash': source_md5},
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content)['session_id'], 'session-123')
+        start_session_mock.assert_called_once_with(source_md5)
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.start_session')
+    def test_api_start_hides_unexpected_service_error(self, start_session_mock):
+        start_session_mock.side_effect = RuntimeError('/secret/path')
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/start',
+            {'hash': 'a' * 32},
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        response_text = resp.content.decode('utf-8')
+        self.assertEqual(resp.status_code, 500)
+        self.assertNotIn('/secret/path', response_text)
+        self.assertEqual(
+            json.loads(response_text),
+            {'error': 'APK editor operation failed'},
+        )
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.start_session')
+    def test_web_start_returns_session_json(self, start_session_mock):
+        self._login_superuser()
+        source_md5 = 'c' * 32
+        start_session_mock.return_value = self._session_json(source_md5)
+
+        resp = self.http_client.post(
+            '/apk_editor/start/',
+            {'hash': source_md5},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content)['session_id'], 'session-123')
+        start_session_mock.assert_called_once_with(source_md5)
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.start_session')
+    def test_web_start_requires_scan_permission(self, start_session_mock):
+        self._login_regular_user()
+
+        with self.settings(DISABLE_AUTHENTICATION='0'):
+            resp = self.http_client.post(
+                '/apk_editor/start/',
+                {'hash': 'c' * 32},
+            )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(
+            resp['Content-Type'].startswith('application/json'),
+            resp['Content-Type'],
+        )
+        self.assertEqual(
+            json.loads(resp.content),
+            {'status': 'failed', 'error': 'Permission denied'},
+        )
+        start_session_mock.assert_not_called()
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.start_session')
+    def test_web_start_requires_csrf_token(self, start_session_mock):
+        csrf_client = Client(enforce_csrf_checks=True)
+        self._login_superuser(client=csrf_client)
+        source_md5 = 'c' * 32
+        start_session_mock.return_value = self._session_json(source_md5)
+
+        resp = csrf_client.post(
+            '/apk_editor/start/',
+            {'hash': source_md5},
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        start_session_mock.assert_not_called()
+
+    @patch(
+        'mobsf.StaticAnalyzer.views.android.apk_editor.web.get_editor_status')
+    def test_web_status_respects_disabled_authentication(
+            self,
+            get_status_mock):
+        source_md5 = 'g' * 32
+        get_status_mock.return_value = self._session_json(
+            source_md5,
+            session_id='disabled-auth',
+        )
+
+        with self.settings(DISABLE_AUTHENTICATION='1'):
+            resp = self.http_client.get(
+                '/apk_editor/status/',
+                {'hash': source_md5},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            json.loads(resp.content)['session_id'],
+            'disabled-auth',
+        )
+        get_status_mock.assert_called_once_with(source_md5, None)
+
+    @patch(
+        'mobsf.StaticAnalyzer.views.android.apk_editor.api.get_editor_status')
+    def test_api_status_returns_session_json(self, get_status_mock):
+        source_md5 = 'd' * 32
+        get_status_mock.return_value = self._session_json(
+            source_md5,
+            session_id='status-session',
+        )
+
+        resp = self.http_client.get(
+            '/api/v1/apk_editor/status',
+            {'hash': source_md5, 'session_id': 'status-session'},
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            json.loads(resp.content)['session_id'],
+            'status-session',
+        )
+        get_status_mock.assert_called_once_with(source_md5, 'status-session')
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.discard_session')
+    def test_web_discard_requires_session_id(self, discard_session_mock):
+        self._login_superuser()
+
+        resp = self.http_client.post(
+            '/apk_editor/discard/',
+            {'hash': 'e' * 32},
+        )
+
+        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(json.loads(resp.content)['status'], 'failed')
+        discard_session_mock.assert_not_called()
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.discard_session')
+    def test_api_discard_returns_session_json(self, discard_session_mock):
+        source_md5 = 'f' * 32
+        discard_session_mock.return_value = self._session_json(
+            source_md5,
+            session_id='discard-session',
+        )
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/discard',
+            {'hash': source_md5, 'session_id': 'discard-session'},
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            json.loads(resp.content)['session_id'],
+            'discard-session',
+        )
+        discard_session_mock.assert_called_once_with(
+            source_md5,
+            'discard-session',
+        )
 
 
 class ApkEditorWorkspaceTests(TestCase):

@@ -1,0 +1,97 @@
+import logging
+from functools import wraps
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods
+
+from mobsf.MobSF.views.authentication import login_required
+from mobsf.MobSF.views.authorization import (
+    Permissions,
+    has_permission,
+)
+from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+    discard_session,
+    get_editor_status,
+    start_session,
+)
+
+
+logger = logging.getLogger(__name__)
+GENERIC_ERROR = 'APK editor operation failed'
+
+
+def json_error(message, status=400):
+    return JsonResponse(
+        {'status': 'failed', 'error': message},
+        status=status,
+    )
+
+
+def request_value(request, name):
+    return request.GET.get(name) or request.POST.get(name)
+
+
+def handle_service_error(exp):
+    if isinstance(exp, ValueError):
+        return json_error(str(exp), 400)
+    logger.exception('APK editor operation failed')
+    return json_error(GENERIC_ERROR, 500)
+
+
+def scan_permission_required(view):
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if has_permission(request, Permissions.SCAN, api=False):
+            return view(request, *args, **kwargs)
+        return json_error('Permission denied', 403)
+    return wrapper
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['POST'])
+def start(request):
+    source_md5 = request.POST.get('hash')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+
+    try:
+        return JsonResponse(start_session(source_md5))
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['GET', 'POST'])
+def status(request):
+    source_md5 = request_value(request, 'hash')
+    session_id = request_value(request, 'session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+
+    try:
+        return JsonResponse(get_editor_status(source_md5, session_id))
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['POST'])
+def discard(request):
+    source_md5 = request.POST.get('hash')
+    session_id = request.POST.get('session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+    if not session_id:
+        return json_error('Missing session_id', 422)
+
+    try:
+        return JsonResponse(discard_session(source_md5, session_id))
+    except Exception as exp:
+        return handle_service_error(exp)

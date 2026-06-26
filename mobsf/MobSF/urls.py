@@ -51,6 +51,10 @@ from mobsf.StaticAnalyzer.views.android.views import (
     source_tree,
     view_source,
 )
+from mobsf.StaticAnalyzer.views.android.apk_editor import (
+    api as apk_editor_api,
+    web as apk_editor_web,
+)
 from mobsf.StaticAnalyzer.views.windows import windows
 from mobsf.StaticAnalyzer.views.android import static_analyzer as android_sa
 from mobsf.StaticAnalyzer.views.ios import static_analyzer as ios_sa
@@ -106,6 +110,9 @@ urlpatterns = [
     re_path(r'^api/v1/scans$', api_sz.api_recent_scans),
     re_path(r'^api/v1/compare$', api_sz.api_compare),
     re_path(r'^api/v1/scorecard$', api_sz.api_scorecard),
+    re_path(r'^api/v1/apk_editor/start$', apk_editor_api.api_start),
+    re_path(r'^api/v1/apk_editor/status$', apk_editor_api.api_status),
+    re_path(r'^api/v1/apk_editor/discard$', apk_editor_api.api_discard),
     # Static Suppression
     re_path(r'^api/v1/suppress_by_rule$', api_sz.api_suppress_by_rule_id),
     re_path(r'^api/v1/suppress_by_files$', api_sz.api_suppress_by_files),
@@ -258,6 +265,15 @@ if settings.API_ONLY == '0':
         re_path(fr'^manifest_view/{checksum_regex}/$',
                 manifest_view.run,
                 name='manifest_view'),
+        re_path(r'^apk_editor/start/$',
+                apk_editor_web.start,
+                name='apk_editor_start'),
+        re_path(r'^apk_editor/status/$',
+                apk_editor_web.status,
+                name='apk_editor_status'),
+        re_path(r'^apk_editor/discard/$',
+                apk_editor_web.discard,
+                name='apk_editor_discard'),
         # IOS
         re_path(fr'^static_analyzer_ios/{checksum_regex}/$',
                 ios_sa.static_analyzer_ios,
