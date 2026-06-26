@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import platform
+from pathlib import Path
 
 from mobsf.MobSF.init import api_key
 
@@ -599,3 +600,81 @@ class StaticAnalyzerAndAPI(TestCase):
     def test_rest_api(self):
         resp = self.http_client.post('/tests/?module=api')
         self.assertEqual(resp.status_code, 200)
+
+
+class ApkEditorModelAndPathTests(TestCase):
+    """APK editor model and path tests."""
+
+    def test_editor_paths_are_under_source_scan_directory(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            BUILD_DIR,
+            EDITOR_DIR,
+            LOG_DIR,
+            LOG_FILE,
+            OUTPUT_DIR,
+            WORKSPACE_DIR,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        source_md5 = '0123456789abcdef0123456789abcdef'
+        session_id = 'session-123'
+
+        paths = editor_paths(source_md5, session_id)
+        source_dir = Path(settings.UPLD_DIR) / source_md5
+        session_root = source_dir / EDITOR_DIR / session_id
+        logs = session_root / LOG_DIR
+
+        self.assertEqual(paths.source_md5, source_md5)
+        self.assertEqual(paths.session_id, session_id)
+        self.assertEqual(paths.source_dir, source_dir)
+        self.assertEqual(paths.source_apk, source_dir / f'{source_md5}.apk')
+        self.assertEqual(paths.session_root, session_root)
+        self.assertEqual(paths.workspace, session_root / WORKSPACE_DIR)
+        self.assertEqual(paths.build, session_root / BUILD_DIR)
+        self.assertEqual(paths.output, session_root / OUTPUT_DIR)
+        self.assertEqual(paths.logs, logs)
+        self.assertEqual(paths.log_file, logs / LOG_FILE)
+
+    def test_editor_paths_rejects_path_traversal_session_id(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        source_md5 = '0123456789abcdef0123456789abcdef'
+
+        with self.assertRaises(ValueError):
+            editor_paths(source_md5, '../escape')
+        with self.assertRaises(ValueError):
+            editor_paths(source_md5, 'bad.session')
+
+    def test_editor_paths_rejects_invalid_source_md5(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        with self.assertRaises(ValueError):
+            editor_paths('not-a-valid-md5', 'session-123')
+
+    def test_apk_editor_session_defaults(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_ACTIVE,
+        )
+        from mobsf.StaticAnalyzer.models import (
+            ApkEditorSession,
+            RecentScansDB,
+        )
+
+        source_md5 = 'fedcba9876543210fedcba9876543210'
+        RecentScansDB.objects.create(MD5=source_md5)
+
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='session-defaults',
+        )
+
+        self.assertEqual(session.state, STATE_ACTIVE)
+        self.assertFalse(session.dirty)
+        self.assertEqual(session.operation_metadata, {})
+        self.assertEqual(session.last_error, '')

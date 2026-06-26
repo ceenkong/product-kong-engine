@@ -171,6 +171,27 @@ class SuppressFindings(models.Model):
     SUPPRESS_TYPE = models.TextField(default='')
 
 
+class ApkEditorSession(models.Model):
+    source_md5 = models.CharField(max_length=32, db_index=True)
+    session_id = models.CharField(max_length=80, unique=True)
+    state = models.CharField(max_length=32, default='active', db_index=True)
+    dirty = models.BooleanField(default=False)
+    operation_metadata = models.JSONField(default=dict)
+    output_apk = models.TextField(default='')
+    last_error = models.TextField(default='')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+    saved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['source_md5', 'state']),
+        ]
+
+    def __str__(self):
+        return f'{self.source_md5}:{self.session_id}:{self.state}'
+
+
 class EnqueuedTask(models.Model):
     task_id = models.CharField(max_length=255)
     checksum = models.CharField(max_length=255)
