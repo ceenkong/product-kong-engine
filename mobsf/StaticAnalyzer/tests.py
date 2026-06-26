@@ -3,7 +3,9 @@ import json
 import logging
 import os
 import platform
+import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from mobsf.MobSF.init import api_key
 
@@ -678,3 +680,155 @@ class ApkEditorModelAndPathTests(TestCase):
         self.assertFalse(session.dirty)
         self.assertEqual(session.operation_metadata, {})
         self.assertEqual(session.last_error, '')
+
+
+class ApkEditorWorkspaceTests(TestCase):
+    """APK editor workspace and command tests."""
+
+    def test_redact_text_hides_secret_values(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
+            redact_text,
+        )
+
+        text = (
+            'store_password=abc123 key_password=def456 '
+            'api_key=secret authorization=bearer'
+        )
+
+        redacted = redact_text(text)
+
+        self.assertNotIn('abc123', redacted)
+        self.assertNotIn('def456', redacted)
+        self.assertNotIn('secret', redacted)
+        self.assertNotIn('bearer', redacted)
+        self.assertIn('store_password=<redacted>', redacted)
+        self.assertIn('key_password=<redacted>', redacted)
+        self.assertIn('api_key=<redacted>', redacted)
+        self.assertIn('authorization=<redacted>', redacted)
+
+    def test_redact_text_hides_quoted_secret_values(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
+            redact_text,
+        )
+
+        text = (
+            'password="abc 123" authorization="Bearer abc" '
+            "token='abc def' api_key=secret"
+        )
+
+        redacted = redact_text(text)
+
+        self.assertNotIn('abc', redacted)
+        self.assertNotIn('123', redacted)
+        self.assertNotIn('Bearer', redacted)
+        self.assertNotIn('def', redacted)
+        self.assertNotIn('secret', redacted)
+        self.assertIn('password=<redacted>', redacted)
+        self.assertIn('authorization=<redacted>', redacted)
+        self.assertIn('token=<redacted>', redacted)
+        self.assertIn('api_key=<redacted>', redacted)
+
+    def test_create_workspace_dirs_creates_expected_directories(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.workspace import (
+            create_workspace_dirs,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                paths = editor_paths(
+                    'c' * 32,
+                    '20260626-120002-cccc',
+                )
+
+                create_workspace_dirs(paths)
+
+                self.assertTrue(paths.workspace.is_dir())
+                self.assertTrue(paths.build.is_dir())
+                self.assertTrue(paths.output.is_dir())
+                self.assertTrue(paths.logs.is_dir())
+
+    def test_remove_build_workspace_deletes_workspace_and_build(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.workspace import (
+            create_workspace_dirs,
+            remove_build_workspace,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                paths = editor_paths(
+                    'c' * 32,
+                    '20260626-120002-cccc',
+                )
+                create_workspace_dirs(paths)
+
+                remove_build_workspace(paths)
+
+                self.assertFalse(paths.workspace.exists())
+                self.assertFalse(paths.build.exists())
+                self.assertTrue(paths.output.is_dir())
+                self.assertTrue(paths.logs.is_dir())
+
+    def test_run_logged_command_writes_command_output(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
+            run_logged_command,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        completed = Mock(returncode=0, stdout='ok', stderr='')
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                paths = editor_paths(
+                    'c' * 32,
+                    '20260626-120002-cccc',
+                )
+                paths.session_root.mkdir(parents=True)
+
+                with patch('subprocess.run', return_value=completed):
+                    result = run_logged_command(
+                        ['echo', 'ok'],
+                        paths.log_file,
+                        cwd=paths.session_root,
+                    )
+
+                self.assertEqual(result.returncode, 0)
+                log_text = paths.log_file.read_text('utf-8')
+                self.assertIn('$ echo ok', log_text)
+                self.assertIn('ok', log_text)
+
+    def test_run_logged_command_accepts_path_arguments(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
+            run_logged_command,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        completed = Mock(returncode=0, stdout='', stderr='')
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                paths = editor_paths(
+                    'c' * 32,
+                    '20260626-120002-cccc',
+                )
+                paths.session_root.mkdir(parents=True)
+                path_arg = Path('AndroidManifest.xml')
+
+                with patch('subprocess.run', return_value=completed) as run:
+                    run_logged_command(
+                        ['cat', path_arg],
+                        paths.log_file,
+                        cwd=paths.session_root,
+                    )
+
+                run_args = run.call_args.args[0]
+                self.assertTrue(all(isinstance(arg, str) for arg in run_args))
+                log_text = paths.log_file.read_text('utf-8')
+                self.assertIn('$ cat AndroidManifest.xml', log_text)
