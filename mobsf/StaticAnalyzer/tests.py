@@ -1085,6 +1085,7 @@ class ApkEditorTemplateTests(TestCase):
         self.assertIn('data-obfuscate-url="/apk_editor/obfuscate/"', html)
         self.assertIn('data-save-url="/apk_editor/save/"', html)
         self.assertIn('data-download-url="/apk_editor/download/"', html)
+        self.assertIn('data-logs-url="/apk_editor/logs/"', html)
         self.assertIn('others/js/apk_editor.js', html)
         self.assertIn('编辑 APK', html)
 
@@ -1347,6 +1348,84 @@ class ApkEditorSaveTests(TestCase):
             paths.output.joinpath(f'{source_md5}-edited.apk').is_file())
         self.assertFalse(paths.workspace.exists())
         self.assertFalse(paths.build.exists())
+
+
+class ApkEditorLogsTests(TestCase):
+    """APK editor log endpoint tests."""
+
+    def setUp(self):
+        self.auth = api_key(settings.MOBSF_HOME)
+        self.http_client = Client()
+
+    def _login_superuser(self):
+        user = get_user_model().objects.create_superuser(
+            username='apk-editor-logs-admin',
+            email='apk-editor-logs-admin@example.com',
+            password='password',
+        )
+        self.http_client.force_login(user)
+
+    def _write_log(self, source_md5, session_id):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.workspace import (
+            create_workspace_dirs,
+        )
+
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id=session_id,
+        )
+        paths = editor_paths(source_md5, session.session_id)
+        shutil.rmtree(paths.session_root, ignore_errors=True)
+        self.addCleanup(
+            shutil.rmtree,
+            paths.session_root,
+            ignore_errors=True,
+        )
+        create_workspace_dirs(paths)
+        paths.log_file.write_text(
+            'store_password=secret\n普通日志\n',
+            encoding='utf-8',
+        )
+        return session
+
+    def test_web_logs_endpoint_returns_redacted_log_lines(self):
+        self._login_superuser()
+        source_md5 = 'b' * 32
+        session = self._write_log(source_md5, 'web-logs-session')
+
+        response = self.http_client.get('/apk_editor/logs/', {
+            'hash': source_md5,
+            'session_id': session.session_id,
+        })
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'ok')
+        self.assertNotIn('secret', payload['logs'])
+        self.assertIn('普通日志', payload['logs'])
+
+    def test_api_logs_endpoint_returns_redacted_log_lines(self):
+        source_md5 = 'c' * 32
+        session = self._write_log(source_md5, 'api-logs-session')
+
+        response = self.http_client.get(
+            '/api/v1/apk_editor/logs',
+            {
+                'hash': source_md5,
+                'session_id': session.session_id,
+            },
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'ok')
+        self.assertNotIn('secret', payload['logs'])
+        self.assertIn('普通日志', payload['logs'])
 
 
 class ApkEditorWorkspaceTests(TestCase):

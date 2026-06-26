@@ -2032,7 +2032,7 @@ git commit -m "feat: add apk editor save and download"
 - Modify: `mobsf/static/others/js/apk_editor.js`
 - Modify: `mobsf/StaticAnalyzer/tests.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新增测试：
 
@@ -2055,7 +2055,7 @@ class ApkEditorLogsTests(TestCase):
         self.assertIn('普通日志', response.json()['logs'])
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -2065,7 +2065,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorLogsTests -v 2
 
 Expected: FAIL，错误包含 404 或没有 `logs` 字段。
 
-- [ ] **Step 3: 增加 logs 服务函数**
+- [x] **Step 3: 增加 logs 服务函数**
 
 在 `session.py` 增加：
 
@@ -2087,7 +2087,7 @@ def read_session_logs(source_md5, session_id):
     return redact_text(paths.log_file.read_text(encoding='utf-8', errors='replace'))
 ```
 
-- [ ] **Step 4: 接入 API/Web/URL/JS**
+- [x] **Step 4: 接入 API/Web/URL/JS**
 
 新增 REST API：
 
@@ -2120,7 +2120,7 @@ GET /apk_editor/logs/
 
 在 Frida、混淆、保存完成或失败后调用 `loadLogs()`。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run:
 
@@ -2130,7 +2130,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorLogsTests -v 2
 
 Expected: PASS，输出包含 `Ran 1 test` 和 `OK`。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add mobsf/StaticAnalyzer/views/android/apk_editor/api.py mobsf/StaticAnalyzer/views/android/apk_editor/web.py mobsf/StaticAnalyzer/views/android/apk_editor/session.py mobsf/MobSF/urls.py mobsf/static/others/js/apk_editor.js mobsf/StaticAnalyzer/tests.py

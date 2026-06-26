@@ -6,7 +6,10 @@ from django.utils import timezone
 
 from mobsf.MobSF.utils import is_md5
 from mobsf.StaticAnalyzer.models import ApkEditorSession, RecentScansDB
-from mobsf.StaticAnalyzer.views.android.apk_editor.command import append_log
+from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
+    append_log,
+    redact_text,
+)
 from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
     ACTIVE_STATES,
     STATE_ACTIVE,
@@ -143,6 +146,23 @@ def get_editor_status(source_md5, session_id=None):
     if not session:
         return {'status': 'not_found'}
     return serialize_session(session)
+
+
+def read_session_logs(source_md5, session_id):
+    session = ApkEditorSession.objects.filter(
+        source_md5=source_md5,
+        session_id=session_id,
+    ).first()
+    if not session:
+        raise ValueError('Editor session not found')
+
+    paths = editor_paths(source_md5, session_id)
+    if not paths.log_file.is_file():
+        return ''
+    return redact_text(paths.log_file.read_text(
+        encoding='utf-8',
+        errors='replace',
+    ))
 
 
 def discard_session(source_md5, session_id):

@@ -12,6 +12,7 @@
   const saveBtn = document.getElementById('apk-editor-save');
   const discardBtn = document.getElementById('apk-editor-discard');
   const downloadLink = document.getElementById('apk-editor-download');
+  const logBox = document.getElementById('apk-editor-log');
   let sessionId = '';
   let savedDownloadUrl = '';
 
@@ -73,6 +74,25 @@
     return `${root.dataset.downloadUrl}?${params.toString()}`;
   }
 
+  function loadLogs(logSessionId) {
+    const targetSessionId = logSessionId || sessionId;
+    if (!targetSessionId || !root.dataset.logsUrl || !logBox) {
+      return Promise.resolve();
+    }
+
+    const params = new URLSearchParams({
+      hash: sourceHash,
+      session_id: targetSessionId,
+    });
+    return fetch(`${root.dataset.logsUrl}?${params.toString()}`)
+      .then((response) => response.json())
+      .then((data) => {
+        logBox.classList.remove('d-none');
+        logBox.textContent = data.logs || '';
+      })
+      .catch(() => {});
+  }
+
   function postForm(url, data) {
     const token = csrfToken();
     const body = new URLSearchParams(data);
@@ -117,6 +137,7 @@
         'success',
       );
       updateControls(false);
+      loadLogs();
     }).catch(() => {
       setStatus(
         message('msgStartFailed', 'Failed to enter edit mode'),
@@ -148,17 +169,20 @@
           ),
           'danger',
         );
+        loadLogs();
         updateControls(false);
         return;
       }
       savedDownloadUrl = '';
       setStatus(message('msgFridaDone', 'Frida Gadget injected'), 'success');
+      loadLogs();
       updateControls(false);
     }).catch(() => {
       setStatus(
         message('msgFridaFailed', 'Failed to inject Frida Gadget'),
         'danger',
       );
+      loadLogs();
       updateControls(false);
     });
   });
@@ -190,6 +214,7 @@
           ),
           'danger',
         );
+        loadLogs();
         updateControls(false);
         return;
       }
@@ -198,12 +223,14 @@
         message('msgObfuscateDone', 'Obfuscation complete'),
         'success',
       );
+      loadLogs();
       updateControls(false);
     }).catch(() => {
       setStatus(
         message('msgObfuscateFailed', 'Failed to run obfuscation'),
         'danger',
       );
+      loadLogs();
       updateControls(false);
     });
   });
@@ -230,6 +257,7 @@
           data.error || message('msgSaveFailed', 'Failed to save APK'),
           'danger',
         );
+        loadLogs(savingSessionId);
         updateControls(false);
         return;
       }
@@ -243,15 +271,18 @@
           ),
           'secondary',
         );
+        loadLogs(savingSessionId);
         closeEditing();
         return;
       }
 
       savedDownloadUrl = downloadUrlFor(savingSessionId);
       setStatus(message('msgSaved', 'Saved. Download edited APK.'), 'success');
+      loadLogs(savingSessionId);
       closeEditing();
     }).catch(() => {
       setStatus(message('msgSaveFailed', 'Failed to save APK'), 'danger');
+      loadLogs(savingSessionId);
       updateControls(false);
     });
   });

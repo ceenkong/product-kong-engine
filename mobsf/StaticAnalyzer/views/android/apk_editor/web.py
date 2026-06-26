@@ -24,6 +24,7 @@ from mobsf.StaticAnalyzer.views.android.apk_editor.obfuscation import (
 from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
     discard_session,
     get_editor_status,
+    read_session_logs,
     start_session,
 )
 
@@ -199,5 +200,27 @@ def download(request):
             output_path.name,
             'application/octet-stream',
         )
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@login_required
+@scan_permission_required
+@require_http_methods(['GET'])
+def logs(request):
+    source_md5 = request.GET.get('hash')
+    session_id = request.GET.get('session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+    if not session_id:
+        return json_error('Missing session_id', 422)
+
+    try:
+        return JsonResponse({
+            'status': 'ok',
+            'hash': source_md5,
+            'session_id': session_id,
+            'logs': read_session_logs(source_md5, session_id),
+        })
     except Exception as exp:
         return handle_service_error(exp)
