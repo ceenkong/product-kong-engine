@@ -41,6 +41,11 @@ LOCALS_RE = re.compile(
         r'(?P<count>\d+)\s*$'
     ),
 )
+MANIFEST_PACKAGE_RE = re.compile(
+    r'<manifest\b[^>]*\bpackage="(?P<package>[^"]+)"',
+)
+APPLICATION_TAG_RE = re.compile(r'<application\b[^>]*>')
+APPLICATION_NAME_RE = re.compile(r'\bandroid:name="(?P<name>[^"]+)"')
 
 
 def detect_abis(paths):
@@ -149,6 +154,130 @@ def find_application_smali(paths):
     return None
 
 
+def _manifest_path(paths):
+    return paths.workspace / 'AndroidManifest.xml'
+
+
+def _manifest_text(paths):
+    manifest = _manifest_path(paths)
+    if not manifest.is_file():
+        raise RuntimeError('AndroidManifest.xml not found')
+    return manifest.read_text(encoding='utf-8', errors='ignore')
+
+
+def _manifest_package(paths):
+    match = MANIFEST_PACKAGE_RE.search(_manifest_text(paths))
+    if not match:
+        raise RuntimeError('Cannot find manifest package for Frida injection')
+    return match.group('package')
+
+
+def _qualified_class_name(package_name, class_name):
+    if class_name.startswith('.'):
+        return f'{package_name}{class_name}'
+    if '.' not in class_name:
+        return f'{package_name}.{class_name}'
+    return class_name
+
+
+def _manifest_application_name(paths):
+    text = _manifest_text(paths)
+    app_match = APPLICATION_TAG_RE.search(text)
+    if not app_match:
+        raise RuntimeError('Cannot find application tag for Frida injection')
+
+    name_match = APPLICATION_NAME_RE.search(app_match.group(0))
+    if not name_match:
+        return ''
+    return _qualified_class_name(_manifest_package(paths), name_match.group(
+        'name'))
+
+
+def _smali_path_for_class(paths, class_name):
+    relative = Path(*class_name.split('.')).with_suffix('.smali')
+    for smali_root in sorted(paths.workspace.glob('smali*')):
+        candidate = smali_root / relative
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _set_manifest_application_name(paths, class_name):
+    manifest = _manifest_path(paths)
+    text = _manifest_text(paths)
+    app_match = APPLICATION_TAG_RE.search(text)
+    if not app_match:
+        raise RuntimeError('Cannot find application tag for Frida injection')
+
+    app_tag = app_match.group(0)
+    if APPLICATION_NAME_RE.search(app_tag):
+        new_app_tag = APPLICATION_NAME_RE.sub(
+            f'android:name="{class_name}"',
+            app_tag,
+            count=1,
+        )
+    else:
+        new_app_tag = app_tag.replace(
+            '<application',
+            f'<application android:name="{class_name}"',
+            1,
+        )
+
+    manifest.write_text(
+        text[:app_match.start()] + new_app_tag + text[app_match.end():],
+        encoding='utf-8',
+    )
+
+
+def _create_application_smali(paths):
+    package_name = _manifest_package(paths)
+    class_name = f'{package_name}.MobSFApplication'
+    smali_file = (
+        paths.workspace
+        / 'smali'
+        / Path(*class_name.split('.')).with_suffix('.smali')
+    )
+    smali_file.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = f'L{class_name.replace(".", "/")};'
+    smali_file.write_text(
+        (
+            f'.class public {descriptor}\n'
+            '.super Landroid/app/Application;\n\n'
+            '.method public constructor <init>()V\n'
+            '    .locals 0\n'
+            '    invoke-direct {p0}, '
+            'Landroid/app/Application;-><init>()V\n'
+            '    return-void\n'
+            '.end method\n\n'
+            '.method public onCreate()V\n'
+            '    .locals 0\n'
+            '    invoke-super {p0}, '
+            'Landroid/app/Application;->onCreate()V\n'
+            '    return-void\n'
+            '.end method\n'
+        ),
+        encoding='utf-8',
+    )
+    _set_manifest_application_name(paths, class_name)
+    return smali_file
+
+
+def application_smali_for_injection(paths):
+    manifest_application = _manifest_application_name(paths)
+    if manifest_application:
+        smali_file = _smali_path_for_class(paths, manifest_application)
+        if smali_file:
+            return smali_file
+
+    smali_file = find_application_smali(paths)
+    if smali_file:
+        return smali_file
+
+    if not manifest_application:
+        return _create_application_smali(paths)
+    return None
+
+
 def _ensure_one_local_register(method_body):
     """Ensure v0 can be used inside the target method."""
     match = LOCALS_RE.search(method_body)
@@ -220,7 +349,7 @@ def inject_frida_gadget(source_md5, session_id, abis=None):
             ensure_gadget(paths, abi)
             write_gadget_config(paths, abi)
 
-        smali_file = find_application_smali(paths)
+        smali_file = application_smali_for_injection(paths)
         if not smali_file:
             raise RuntimeError(
                 'Cannot find Application smali for Frida injection')

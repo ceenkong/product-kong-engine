@@ -2144,7 +2144,7 @@ git commit -m "feat: expose apk editor logs"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-06-26-apk-editor.md`
 
-- [ ] **Step 1: 运行 focused Django tests**
+- [x] **Step 1: 运行 focused Django tests**
 
 Run:
 
@@ -2164,7 +2164,7 @@ python manage.py test \
 
 Expected: PASS，输出包含所有测试类和 `OK`。
 
-- [ ] **Step 2: 运行项目已有页面语言测试，确认无回归**
+- [x] **Step 2: 运行项目已有页面语言测试，确认无回归**
 
 Run:
 
@@ -2174,7 +2174,7 @@ python manage.py test mobsf.MobSF.tests.PageLanguageTests -v 2
 
 Expected: PASS，输出包含 `Ran 3 tests` 和 `OK`。
 
-- [ ] **Step 3: 检查 Django 配置**
+- [x] **Step 3: 检查 Django 配置**
 
 Run:
 
@@ -2184,7 +2184,7 @@ python manage.py check
 
 Expected: 输出包含 `System check identified no issues`。
 
-- [ ] **Step 4: Docker rebuild 并启动**
+- [x] **Step 4: Docker rebuild 并启动**
 
 Run:
 
@@ -2194,7 +2194,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 Expected: 命令退出码为 0。
 
-- [ ] **Step 5: Docker 内运行 focused tests**
+- [x] **Step 5: Docker 内运行 focused tests**
 
 Run:
 
@@ -2214,7 +2214,7 @@ docker compose -f docker/docker-compose.yml exec -T mobsf python manage.py test 
 
 Expected: PASS，输出包含 `OK`。
 
-- [ ] **Step 6: 手工页面验证**
+- [x] **Step 6: 手工页面验证**
 
 在浏览器打开：
 
@@ -2235,7 +2235,7 @@ http://localhost/
 - 下载 APK 文件。
 - 不做任何操作的新编辑会话点击保存后不生成下载按钮，并且 session 目录被删除。
 
-- [ ] **Step 7: 提交最终验证记录**
+- [x] **Step 7: 提交最终验证记录**
 
 在本计划文件底部追加：
 
@@ -2257,6 +2257,15 @@ git commit -m "docs: record apk editor verification"
 ```
 
 ---
+
+## 执行验证记录
+
+- Docker focused tests: PASS，46 个 APK 编辑器相关测试 OK。
+- PageLanguageTests: PASS，3 个测试 OK。
+- Docker manage.py check: PASS，System check identified no issues。
+- Docker up -d --build: PASS，mobsf 容器 healthy。
+- 手工页面验证: PASS。使用内置 `JustTrustMe.apk` 完成上传、静态分析、报告页 APK 编辑器卡片展示、进入编辑状态、Frida Gadget 注入、混淆、保存重打包签名、下载 APK、无改动保存关闭编辑状态且删除 session 目录。
+- 额外部署修复验证: PASS。持久化 Postgres 缺少 `StaticAnalyzer_apkeditorsession` 表时，`ensure_apk_editor_schema` 已在启动后补表。
 
 ## 自审结果
 

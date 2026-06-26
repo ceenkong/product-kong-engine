@@ -1170,6 +1170,55 @@ class ApkEditorFridaTests(TestCase):
         self.assertEqual(result['frida_gadget_injected'], True)
         self.assertIn('loadLibrary', app_smali.read_text(encoding='utf-8'))
 
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.frida.ensure_gadget')
+    def test_inject_frida_gadget_creates_application_when_missing(
+            self,
+            ensure_gadget_mock):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
+            inject_frida_gadget,
+        )
+
+        source_md5 = '6' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='frida-no-application',
+        )
+        paths = self._fresh_paths(source_md5, session.session_id)
+        paths.workspace.joinpath('smali/com/example').mkdir(parents=True)
+        paths.workspace.joinpath('AndroidManifest.xml').write_text(
+            '<manifest xmlns:android='
+            '"http://schemas.android.com/apk/res/android" '
+            'package="com.example">'
+            '<application android:theme="@style/AppTheme"/>'
+            '</manifest>',
+            encoding='utf-8',
+        )
+        ensure_gadget_mock.return_value = (
+            paths.workspace / 'lib/arm64-v8a/libfrida-gadget.so'
+        )
+
+        result = inject_frida_gadget(
+            source_md5,
+            session.session_id,
+            ['arm64-v8a'],
+        )
+
+        generated = (
+            paths.workspace
+            / 'smali/com/example/MobSFApplication.smali'
+        )
+        manifest = paths.workspace.joinpath('AndroidManifest.xml').read_text(
+            encoding='utf-8',
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertTrue(generated.is_file())
+        self.assertIn('loadLibrary', generated.read_text(encoding='utf-8'))
+        self.assertIn(
+            'android:name="com.example.MobSFApplication"',
+            manifest,
+        )
+
 
 class ApkEditorObfuscationTests(TestCase):
     """APK editor obfuscation tests."""
@@ -1426,6 +1475,32 @@ class ApkEditorLogsTests(TestCase):
         self.assertEqual(payload['status'], 'ok')
         self.assertNotIn('secret', payload['logs'])
         self.assertIn('普通日志', payload['logs'])
+
+
+class ApkEditorSchemaCommandTests(TestCase):
+    """APK editor deployment schema command tests."""
+
+    @patch(
+        'mobsf.StaticAnalyzer.management.commands.'
+        'ensure_apk_editor_schema.connection')
+    def test_ensure_apk_editor_schema_creates_missing_table(
+            self,
+            connection_mock):
+        from django.core.management import call_command
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+
+        schema_editor = (
+            connection_mock
+            .schema_editor
+            .return_value
+            .__enter__
+            .return_value
+        )
+        connection_mock.introspection.table_names.return_value = []
+
+        call_command('ensure_apk_editor_schema')
+
+        schema_editor.create_model.assert_called_once_with(ApkEditorSession)
 
 
 class ApkEditorWorkspaceTests(TestCase):
