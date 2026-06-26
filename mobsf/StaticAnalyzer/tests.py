@@ -988,6 +988,69 @@ class ApkEditorEndpointTests(TestCase):
         self.assertEqual(json.loads(resp.content)['status'], 'failed')
         obfuscate_mock.assert_not_called()
 
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.save_session')
+    def test_api_save_returns_session_json(self, save_mock):
+        source_md5 = '7' * 32
+        save_mock.return_value = self._session_json(
+            source_md5,
+            session_id='save-session',
+        )
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/save',
+            {
+                'hash': source_md5,
+                'session_id': 'save-session',
+                'signing': 'debug',
+            },
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content)['session_id'], 'save-session')
+        save_mock.assert_called_once_with(
+            source_md5,
+            'save-session',
+            {'signing': 'debug'},
+        )
+
+    def test_web_download_returns_saved_apk(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_SAVED,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        self._login_superuser()
+        source_md5 = '8' * 32
+        paths = editor_paths(source_md5, 'download-session')
+        shutil.rmtree(paths.session_root, ignore_errors=True)
+        self.addCleanup(
+            shutil.rmtree,
+            paths.session_root,
+            ignore_errors=True,
+        )
+        paths.output.mkdir(parents=True)
+        output_apk = paths.output / f'{source_md5}-edited.apk'
+        output_apk.write_bytes(b'edited-apk')
+        ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='download-session',
+            state=STATE_SAVED,
+            dirty=True,
+            output_apk=str(output_apk),
+        )
+
+        resp = self.http_client.get(
+            '/apk_editor/download/',
+            {'hash': source_md5, 'session_id': 'download-session'},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, b'edited-apk')
+
 
 class ApkEditorTemplateTests(TestCase):
     """APK editor template tests."""
@@ -1020,6 +1083,8 @@ class ApkEditorTemplateTests(TestCase):
         self.assertIn('data-discard-url="/apk_editor/discard/"', html)
         self.assertIn('data-frida-url="/apk_editor/frida_gadget/"', html)
         self.assertIn('data-obfuscate-url="/apk_editor/obfuscate/"', html)
+        self.assertIn('data-save-url="/apk_editor/save/"', html)
+        self.assertIn('data-download-url="/apk_editor/download/"', html)
         self.assertIn('others/js/apk_editor.js', html)
         self.assertIn('编辑 APK', html)
 
@@ -1183,6 +1248,105 @@ class ApkEditorObfuscationTests(TestCase):
         session.refresh_from_db()
         self.assertFalse(session.dirty)
         self.assertFalse(result['changed'])
+
+
+class ApkEditorSaveTests(TestCase):
+    """APK editor save/build tests."""
+
+    def _fresh_paths(self, source_md5, session_id):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        paths = editor_paths(source_md5, session_id)
+        shutil.rmtree(paths.session_root, ignore_errors=True)
+        self.addCleanup(
+            shutil.rmtree,
+            paths.session_root,
+            ignore_errors=True,
+        )
+        return paths
+
+    def test_save_clean_session_closes_and_deletes_directory(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.build import (
+            save_session,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_CLOSED_NO_CHANGES,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.workspace import (
+            create_workspace_dirs,
+        )
+
+        source_md5 = '9' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='clean-save',
+        )
+        paths = self._fresh_paths(source_md5, session.session_id)
+        create_workspace_dirs(paths)
+
+        result = save_session(source_md5, session.session_id, {})
+
+        session.refresh_from_db()
+        self.assertEqual(result['state'], STATE_CLOSED_NO_CHANGES)
+        self.assertEqual(session.state, STATE_CLOSED_NO_CHANGES)
+        self.assertFalse(paths.session_root.exists())
+
+    @patch(
+        'mobsf.StaticAnalyzer.views.android.apk_editor.build.run_logged_command')
+    def test_save_dirty_session_writes_output_and_marks_saved(
+            self,
+            run_mock):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.build import (
+            save_session,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_SAVED,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.workspace import (
+            create_workspace_dirs,
+        )
+
+        source_md5 = 'a' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='dirty-save',
+            dirty=True,
+        )
+        paths = self._fresh_paths(source_md5, session.session_id)
+        create_workspace_dirs(paths)
+
+        def fake_command(args, *_args, **_kwargs):
+            if '-genkeypair' in args and '-keystore' in args:
+                Path(args[args.index('-keystore') + 1]).write_bytes(
+                    b'keystore')
+            elif '-o' in args:
+                Path(args[args.index('-o') + 1]).write_bytes(b'unsigned')
+            elif Path(args[0]).name == 'zipalign':
+                Path(args[-1]).write_bytes(Path(args[-2]).read_bytes())
+            elif '--out' in args:
+                Path(args[args.index('--out') + 1]).write_bytes(
+                    Path(args[-1]).read_bytes())
+            return Mock(returncode=0, stdout='', stderr='')
+
+        run_mock.side_effect = fake_command
+
+        result = save_session(
+            source_md5,
+            session.session_id,
+            {'signing': 'debug'},
+        )
+
+        session.refresh_from_db()
+        self.assertEqual(result['state'], STATE_SAVED)
+        self.assertEqual(session.state, STATE_SAVED)
+        self.assertTrue(
+            paths.output.joinpath(f'{source_md5}-edited.apk').is_file())
+        self.assertFalse(paths.workspace.exists())
+        self.assertFalse(paths.build.exists())
 
 
 class ApkEditorWorkspaceTests(TestCase):

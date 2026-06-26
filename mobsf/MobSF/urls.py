@@ -117,6 +117,10 @@ urlpatterns = [
             apk_editor_api.api_frida_gadget),
     re_path(r'^api/v1/apk_editor/obfuscate$',
             apk_editor_api.api_obfuscate),
+    re_path(r'^api/v1/apk_editor/save$',
+            apk_editor_api.api_save),
+    re_path(r'^api/v1/apk_editor/download$',
+            apk_editor_api.api_download),
     # Static Suppression
     re_path(r'^api/v1/suppress_by_rule$', api_sz.api_suppress_by_rule_id),
     re_path(r'^api/v1/suppress_by_files$', api_sz.api_suppress_by_files),
@@ -284,6 +288,12 @@ if settings.API_ONLY == '0':
         re_path(r'^apk_editor/obfuscate/$',
                 apk_editor_web.obfuscate,
                 name='apk_editor_obfuscate'),
+        re_path(r'^apk_editor/save/$',
+                apk_editor_web.save,
+                name='apk_editor_save'),
+        re_path(r'^apk_editor/download/$',
+                apk_editor_web.download,
+                name='apk_editor_download'),
         # IOS
         re_path(fr'^static_analyzer_ios/{checksum_regex}/$',
                 ios_sa.static_analyzer_ios,

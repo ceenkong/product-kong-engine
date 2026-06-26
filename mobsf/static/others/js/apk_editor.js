@@ -13,6 +13,7 @@
   const discardBtn = document.getElementById('apk-editor-discard');
   const downloadLink = document.getElementById('apk-editor-download');
   let sessionId = '';
+  let savedDownloadUrl = '';
 
   function message(name, fallback) {
     return root.dataset[name] || fallback;
@@ -49,9 +50,27 @@
     obfuscateBtn.disabled = busy || !editing;
     saveBtn.disabled = busy || !editing;
     discardBtn.disabled = busy || !editing;
-    if (!editing) {
+
+    if (savedDownloadUrl) {
+      downloadLink.href = savedDownloadUrl;
+      downloadLink.classList.remove('disabled');
+    } else {
+      downloadLink.href = '#';
       downloadLink.classList.add('disabled');
     }
+  }
+
+  function closeEditing() {
+    sessionId = '';
+    updateControls(false);
+  }
+
+  function downloadUrlFor(savedSessionId) {
+    const params = new URLSearchParams({
+      hash: sourceHash,
+      session_id: savedSessionId,
+    });
+    return `${root.dataset.downloadUrl}?${params.toString()}`;
   }
 
   function postForm(url, data) {
@@ -88,6 +107,7 @@
         updateControls(false);
         return;
       }
+      savedDownloadUrl = '';
       sessionId = data.session_id;
       setStatus(
         message(
@@ -98,14 +118,20 @@
       );
       updateControls(false);
     }).catch(() => {
-      setStatus(message('msgStartFailed', 'Failed to enter edit mode'), 'danger');
+      setStatus(
+        message('msgStartFailed', 'Failed to enter edit mode'),
+        'danger',
+      );
       updateControls(false);
     });
   });
 
   fridaBtn.addEventListener('click', function () {
     if (!sessionId) {
-      setStatus(message('msgNoSession', 'No active editor session'), 'warning');
+      setStatus(
+        message('msgNoSession', 'No active editor session'),
+        'warning',
+      );
       return;
     }
     updateControls(true);
@@ -116,12 +142,16 @@
     }).then((data) => {
       if (data.status !== 'ok') {
         setStatus(
-          data.error || message('msgFridaFailed', 'Failed to inject Frida Gadget'),
+          data.error || message(
+            'msgFridaFailed',
+            'Failed to inject Frida Gadget',
+          ),
           'danger',
         );
         updateControls(false);
         return;
       }
+      savedDownloadUrl = '';
       setStatus(message('msgFridaDone', 'Frida Gadget injected'), 'success');
       updateControls(false);
     }).catch(() => {
@@ -135,7 +165,10 @@
 
   obfuscateBtn.addEventListener('click', function () {
     if (!sessionId) {
-      setStatus(message('msgNoSession', 'No active editor session'), 'warning');
+      setStatus(
+        message('msgNoSession', 'No active editor session'),
+        'warning',
+      );
       return;
     }
     updateControls(true);
@@ -160,7 +193,11 @@
         updateControls(false);
         return;
       }
-      setStatus(message('msgObfuscateDone', 'Obfuscation complete'), 'success');
+      savedDownloadUrl = '';
+      setStatus(
+        message('msgObfuscateDone', 'Obfuscation complete'),
+        'success',
+      );
       updateControls(false);
     }).catch(() => {
       setStatus(
@@ -171,9 +208,60 @@
     });
   });
 
+  saveBtn.addEventListener('click', function () {
+    if (!sessionId) {
+      setStatus(
+        message('msgNoSession', 'No active editor session'),
+        'warning',
+      );
+      return;
+    }
+
+    const savingSessionId = sessionId;
+    updateControls(true);
+    setStatus(message('msgSaving', 'Saving and signing'), 'info');
+    postForm(root.dataset.saveUrl, {
+      hash: sourceHash,
+      session_id: savingSessionId,
+      signing: 'debug',
+    }).then((data) => {
+      if (data.status !== 'ok') {
+        setStatus(
+          data.error || message('msgSaveFailed', 'Failed to save APK'),
+          'danger',
+        );
+        updateControls(false);
+        return;
+      }
+
+      if (data.state === 'closed_no_changes') {
+        savedDownloadUrl = '';
+        setStatus(
+          message(
+            'msgClosedNoChanges',
+            'No changes. Edit session closed.',
+          ),
+          'secondary',
+        );
+        closeEditing();
+        return;
+      }
+
+      savedDownloadUrl = downloadUrlFor(savingSessionId);
+      setStatus(message('msgSaved', 'Saved. Download edited APK.'), 'success');
+      closeEditing();
+    }).catch(() => {
+      setStatus(message('msgSaveFailed', 'Failed to save APK'), 'danger');
+      updateControls(false);
+    });
+  });
+
   discardBtn.addEventListener('click', function () {
     if (!sessionId) {
-      setStatus(message('msgNoSession', 'No active editor session'), 'warning');
+      setStatus(
+        message('msgNoSession', 'No active editor session'),
+        'warning',
+      );
       return;
     }
     updateControls(true);
@@ -183,14 +271,21 @@
     }).then((data) => {
       if (data.status !== 'ok') {
         setStatus(
-          data.error || message('msgDiscardFailed', 'Failed to discard edit session'),
+          data.error || message(
+            'msgDiscardFailed',
+            'Failed to discard edit session',
+          ),
           'danger',
         );
         updateControls(false);
         return;
       }
+      savedDownloadUrl = '';
       sessionId = '';
-      setStatus(message('msgDiscarded', 'Edit session discarded'), 'secondary');
+      setStatus(
+        message('msgDiscarded', 'Edit session discarded'),
+        'secondary',
+      );
       updateControls(false);
     }).catch(() => {
       setStatus(

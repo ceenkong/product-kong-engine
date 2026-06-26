@@ -10,6 +10,8 @@
              data-discard-url="{% url 'apk_editor_discard' %}"
              data-frida-url="{% url 'apk_editor_frida_gadget' %}"
              data-obfuscate-url="{% url 'apk_editor_obfuscate' %}"
+             data-save-url="{% url 'apk_editor_save' %}"
+             data-download-url="{% url 'apk_editor_download' %}"
              data-msg-starting="{% trans 'Entering edit mode' %}"
              data-msg-start-failed="{% trans 'Failed to enter edit mode' %}"
              data-msg-editing="{% trans 'Editing. All operations will be saved to the current session.' %}"
@@ -21,7 +23,11 @@
              data-msg-frida-done="{% trans 'Frida Gadget injected' %}"
              data-msg-obfuscating="{% trans 'Running obfuscation' %}"
              data-msg-obfuscate-failed="{% trans 'Failed to run obfuscation' %}"
-             data-msg-obfuscate-done="{% trans 'Obfuscation complete' %}">
+             data-msg-obfuscate-done="{% trans 'Obfuscation complete' %}"
+             data-msg-saving="{% trans 'Saving and signing' %}"
+             data-msg-save-failed="{% trans 'Failed to save APK' %}"
+             data-msg-closed-no-changes="{% trans 'No changes. Edit session closed.' %}"
+             data-msg-saved="{% trans 'Saved. Download edited APK.' %}">
           <div class="card-body">
             <p><strong><i class="fas fa-edit"></i> {% trans 'APK Editor' %}</strong></p>
             <div id="apk-editor-status" class="alert alert-secondary">

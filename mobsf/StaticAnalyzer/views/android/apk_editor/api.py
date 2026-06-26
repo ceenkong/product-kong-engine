@@ -4,6 +4,11 @@ from django.views.decorators.csrf import csrf_exempt
 
 from mobsf.MobSF.views.api.api_middleware import make_api_response
 from mobsf.MobSF.views.helpers import request_method
+from mobsf.MobSF.views.home import file_download
+from mobsf.StaticAnalyzer.views.android.apk_editor.build import (
+    save_session,
+    saved_output_path,
+)
 from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
     inject_frida_gadget,
 )
@@ -134,6 +139,50 @@ def api_obfuscate(request):
                 obfuscation_options(request),
             ),
             200,
+        )
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@request_method(['POST'])
+@csrf_exempt
+def api_save(request):
+    source_md5 = request.POST.get('hash')
+    session_id = request.POST.get('session_id')
+    if not source_md5:
+        return missing_hash_response()
+    if not session_id:
+        return missing_session_response()
+
+    try:
+        return make_api_response(
+            save_session(
+                source_md5,
+                session_id,
+                {'signing': request.POST.get('signing') or 'debug'},
+            ),
+            200,
+        )
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@request_method(['GET'])
+@csrf_exempt
+def api_download(request):
+    source_md5 = request.GET.get('hash')
+    session_id = request.GET.get('session_id')
+    if not source_md5:
+        return missing_hash_response()
+    if not session_id:
+        return missing_session_response()
+
+    try:
+        output_path = saved_output_path(source_md5, session_id)
+        return file_download(
+            output_path,
+            output_path.name,
+            'application/octet-stream',
         )
     except Exception as exp:
         return handle_service_error(exp)

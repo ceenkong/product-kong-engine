@@ -274,3 +274,15 @@ msgstr "执行混淆失败"
 
 msgid "Obfuscation complete"
 msgstr "混淆已完成"
+
+msgid "Saving and signing"
+msgstr "正在保存并签名"
+
+msgid "Failed to save APK"
+msgstr "保存 APK 失败"
+
+msgid "No changes. Edit session closed."
+msgstr "没有任何修改，编辑状态已关闭。"
+
+msgid "Saved. Download edited APK."
+msgstr "保存完成，可以下载编辑后的 APK。"

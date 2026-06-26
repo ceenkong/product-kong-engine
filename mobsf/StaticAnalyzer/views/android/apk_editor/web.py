@@ -10,6 +10,11 @@ from mobsf.MobSF.views.authorization import (
     Permissions,
     has_permission,
 )
+from mobsf.MobSF.views.home import file_download
+from mobsf.StaticAnalyzer.views.android.apk_editor.build import (
+    save_session,
+    saved_output_path,
+)
 from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
     inject_frida_gadget,
 )
@@ -150,5 +155,49 @@ def obfuscate(request):
             session_id,
             obfuscation_options(request),
         ))
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['POST'])
+def save(request):
+    source_md5 = request.POST.get('hash')
+    session_id = request.POST.get('session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+    if not session_id:
+        return json_error('Missing session_id', 422)
+
+    try:
+        return JsonResponse(save_session(
+            source_md5,
+            session_id,
+            {'signing': request.POST.get('signing') or 'debug'},
+        ))
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+@login_required
+@scan_permission_required
+@require_http_methods(['GET'])
+def download(request):
+    source_md5 = request.GET.get('hash')
+    session_id = request.GET.get('session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+    if not session_id:
+        return json_error('Missing session_id', 422)
+
+    try:
+        output_path = saved_output_path(source_md5, session_id)
+        return file_download(
+            output_path,
+            output_path.name,
+            'application/octet-stream',
+        )
     except Exception as exp:
         return handle_service_error(exp)
