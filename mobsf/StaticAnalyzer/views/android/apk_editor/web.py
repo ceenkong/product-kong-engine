@@ -1,16 +1,21 @@
 import logging
 from functools import wraps
 
+from django.conf import settings
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 
+from mobsf.MobSF.forms import UploadFileForm
 from mobsf.MobSF.views.authentication import login_required
 from mobsf.MobSF.views.authorization import (
     Permissions,
     has_permission,
 )
+from mobsf.MobSF.views.helpers import FileType
 from mobsf.MobSF.views.home import file_download
+from mobsf.MobSF.views.scanning import handle_uploaded_file
 from mobsf.StaticAnalyzer.views.android.apk_editor.build import (
     save_session,
     saved_output_path,
@@ -58,6 +63,45 @@ def scan_permission_required(view):
             return view(request, *args, **kwargs)
         return json_error('Permission denied', 403)
     return wrapper
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['GET'])
+def editor(request):
+    return render(
+        request,
+        'static_analysis/apk_editor.html',
+        {
+            'title': 'APK Editor',
+            'version': settings.MOBSF_VER,
+            'md5': '',
+            'app_type': '',
+            'apk_editor_standalone': True,
+        },
+    )
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['POST'])
+def upload(request):
+    form = UploadFileForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return json_error('Invalid Form Data', 422)
+
+    file_obj = request.FILES['file']
+    file_type = FileType(file_obj)
+    if not file_type.is_allow_file() or not file_type.is_apk():
+        return json_error('Only APK files are supported', 400)
+
+    try:
+        source_md5 = handle_uploaded_file(file_obj, '.apk')
+        return JsonResponse(start_session(source_md5))
+    except Exception as exp:
+        return handle_service_error(exp)
 
 
 @csrf_protect

@@ -4,7 +4,10 @@
     return;
   }
 
-  const sourceHash = root.dataset.hash;
+  let sourceHash = root.dataset.hash || '';
+  const uploadForm = document.getElementById('apk-editor-upload');
+  const uploadInput = document.getElementById('apk-editor-file');
+  const uploadButton = document.getElementById('apk-editor-upload-button');
   const statusBox = document.getElementById('apk-editor-status');
   const startBtn = document.getElementById('apk-editor-start');
   const fridaBtn = document.getElementById('apk-editor-frida');
@@ -23,6 +26,10 @@
   function pageCsrfToken() {
     if (typeof csrf !== 'undefined') {
       return csrf;
+    }
+    const input = document.querySelector('input[name=csrfmiddlewaretoken]');
+    if (input && input.value) {
+      return input.value;
     }
     return '';
   }
@@ -46,7 +53,7 @@
 
   function updateControls(busy) {
     const editing = Boolean(sessionId);
-    startBtn.disabled = busy || editing;
+    startBtn.disabled = busy || editing || !sourceHash;
     fridaBtn.disabled = busy || !editing;
     obfuscateBtn.disabled = busy || !editing;
     saveBtn.disabled = busy || !editing;
@@ -115,7 +122,96 @@
     });
   }
 
+  if (uploadInput) {
+    uploadInput.addEventListener('change', function () {
+      const fileName = uploadInput.files && uploadInput.files.length
+        ? uploadInput.files[0].name
+        : '';
+      const label = uploadInput
+        .closest('.custom-file')
+        .querySelector('.custom-file-label');
+      if (label && fileName) {
+        label.textContent = fileName;
+      }
+    });
+  }
+
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!uploadInput || !uploadInput.files || !uploadInput.files.length) {
+        setStatus(
+          message('msgUploadFailed', 'Failed to upload APK'),
+          'warning',
+        );
+        return;
+      }
+
+      updateControls(true);
+      if (uploadButton) {
+        uploadButton.disabled = true;
+      }
+      setStatus(message('msgUploading', 'Uploading APK'), 'info');
+
+      const token = csrfToken();
+      const body = new FormData(uploadForm);
+      body.set('csrfmiddlewaretoken', token);
+      fetch(root.dataset.uploadUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': token,
+        },
+        body,
+      }).then((response) => response.json()).then((data) => {
+        if (data.status !== 'ok') {
+          setStatus(
+            data.error || message('msgUploadFailed', 'Failed to upload APK'),
+            'danger',
+          );
+          updateControls(false);
+          if (uploadButton) {
+            uploadButton.disabled = false;
+          }
+          return;
+        }
+
+        sourceHash = data.hash;
+        root.dataset.hash = sourceHash;
+        savedDownloadUrl = '';
+        sessionId = data.session_id;
+        setStatus(
+          message(
+            'msgUploadDone',
+            'APK uploaded. Editing session created.',
+          ),
+          'success',
+        );
+        updateControls(false);
+        if (uploadButton) {
+          uploadButton.disabled = false;
+        }
+        loadLogs();
+      }).catch(() => {
+        setStatus(
+          message('msgUploadFailed', 'Failed to upload APK'),
+          'danger',
+        );
+        updateControls(false);
+        if (uploadButton) {
+          uploadButton.disabled = false;
+        }
+      });
+    });
+  }
+
   startBtn.addEventListener('click', function () {
+    if (!sourceHash) {
+      setStatus(
+        message('msgUploadFailed', 'Failed to upload APK'),
+        'warning',
+      );
+      return;
+    }
     updateControls(true);
     setStatus(message('msgStarting', 'Entering edit mode'), 'info');
     postForm(root.dataset.startUrl, { hash: sourceHash }).then((data) => {

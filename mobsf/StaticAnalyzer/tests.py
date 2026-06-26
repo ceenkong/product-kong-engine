@@ -780,6 +780,64 @@ class ApkEditorEndpointTests(TestCase):
         self.assertEqual(json.loads(resp.content)['session_id'], 'session-123')
         start_session_mock.assert_called_once_with(source_md5)
 
+    def test_web_editor_home_renders_standalone_upload_page(self):
+        self._login_superuser()
+
+        resp = self.http_client.get('/apk_editor/')
+        html = resp.content.decode('utf-8')
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('APK Editor', html)
+        self.assertIn('id="apk-editor-upload"', html)
+        self.assertIn('data-upload-url="/apk_editor/upload/"', html)
+        self.assertIn('id="apk-editor"', html)
+        self.assertIn('others/js/apk_editor.js', html)
+
+    def test_nav_contains_global_apk_editor_link(self):
+        self._login_superuser()
+
+        resp = self.http_client.get('/apk_editor/')
+        html = resp.content.decode('utf-8')
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('href="/apk_editor/"', html)
+        self.assertIn('APK Editor', html)
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.session.decompile_apk')
+    def test_web_upload_apk_creates_editor_session_without_scan(
+            self,
+            decompile_mock):
+        from hashlib import md5
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from mobsf.StaticAnalyzer.models import RecentScansDB
+
+        self._login_superuser()
+        content = b'PK\x03\x04apk editor standalone upload'
+        source_md5 = md5(content).hexdigest()
+        upload = SimpleUploadedFile(
+            'standalone.apk',
+            content,
+            content_type='application/vnd.android.package-archive',
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                resp = self.http_client.post(
+                    '/apk_editor/upload/',
+                    {'file': upload},
+                )
+                payload = json.loads(resp.content)
+                source_path = Path(upload_dir) / source_md5 / f'{source_md5}.apk'
+
+                self.assertTrue(source_path.is_file())
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(payload['status'], 'ok')
+        self.assertEqual(payload['hash'], source_md5)
+        self.assertTrue(payload['session_id'])
+        self.assertEqual(RecentScansDB.objects.count(), 0)
+        decompile_mock.assert_called_once()
+
     @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.start_session')
     def test_web_start_requires_scan_permission(self, start_session_mock):
         self._login_regular_user()
@@ -1699,6 +1757,35 @@ class ApkEditorSessionServiceTests(TestCase):
         self.assertEqual(result['state'], STATE_ACTIVE)
         self.assertFalse(result['dirty'])
         self.assertEqual(ApkEditorSession.objects.count(), 1)
+        decompile.assert_called_once()
+
+    def test_start_session_accepts_uploaded_apk_without_recent_scan(self):
+        from mobsf.StaticAnalyzer.models import (
+            ApkEditorSession,
+            RecentScansDB,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_ACTIVE,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            start_session,
+        )
+
+        source_md5 = '9' * 32
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                self._create_source_apk(upload_dir, source_md5)
+                with patch(
+                        'mobsf.StaticAnalyzer.views.android.'
+                        'apk_editor.session.decompile_apk') as decompile:
+                    result = start_session(source_md5)
+
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['hash'], source_md5)
+        self.assertEqual(result['state'], STATE_ACTIVE)
+        self.assertEqual(ApkEditorSession.objects.count(), 1)
+        self.assertEqual(RecentScansDB.objects.count(), 0)
         decompile.assert_called_once()
 
     def test_start_session_returns_existing_active_session(self):

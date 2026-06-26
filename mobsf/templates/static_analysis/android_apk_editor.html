@@ -1,11 +1,12 @@
 {% load i18n static %}
-{% if app_type == 'apk' %}
+{% if app_type == 'apk' or apk_editor_standalone %}
 <section class="content">
   <div class="container-fluid">
     <div class="row">
       <div class="col-lg-12">
         <div class="card" id="apk-editor"
              data-hash="{{ md5 }}"
+             data-upload-url="{% url 'apk_editor_upload' %}"
              data-start-url="{% url 'apk_editor_start' %}"
              data-discard-url="{% url 'apk_editor_discard' %}"
              data-frida-url="{% url 'apk_editor_frida_gadget' %}"
@@ -16,6 +17,9 @@
              data-msg-starting="{% trans 'Entering edit mode' %}"
              data-msg-start-failed="{% trans 'Failed to enter edit mode' %}"
              data-msg-editing="{% trans 'Editing. All operations will be saved to the current session.' %}"
+             data-msg-uploading="{% trans 'Uploading APK' %}"
+             data-msg-upload-failed="{% trans 'Failed to upload APK' %}"
+             data-msg-upload-done="{% trans 'APK uploaded. Editing session created.' %}"
              data-msg-no-session="{% trans 'No active editor session' %}"
              data-msg-discard-failed="{% trans 'Failed to discard edit session' %}"
              data-msg-discarded="{% trans 'Edit session discarded' %}"
@@ -31,6 +35,22 @@
              data-msg-saved="{% trans 'Saved. Download edited APK.' %}">
           <div class="card-body">
             <p><strong><i class="fas fa-edit"></i> {% trans 'APK Editor' %}</strong></p>
+            {% if apk_editor_standalone %}
+            <form id="apk-editor-upload" class="mb-3" enctype="multipart/form-data" method="post">
+              {% csrf_token %}
+              <div class="input-group">
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="apk-editor-file" name="file" accept=".apk">
+                  <label class="custom-file-label" for="apk-editor-file">{% trans 'Select APK' %}</label>
+                </div>
+                <div class="input-group-append">
+                  <button type="submit" class="btn btn-primary" id="apk-editor-upload-button">
+                    <i class="fas fa-upload"></i> {% trans 'Upload APK' %}
+                  </button>
+                </div>
+              </div>
+            </form>
+            {% endif %}
             <div id="apk-editor-status" class="alert alert-secondary">
               {% trans 'Not editing' %}
             </div>

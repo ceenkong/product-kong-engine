@@ -248,6 +248,21 @@ msgstr "进入编辑状态失败"
 msgid "Editing. All operations will be saved to the current session."
 msgstr "正在编辑，所有操作会保存到当前会话。"
 
+msgid "Uploading APK"
+msgstr "正在上传 APK"
+
+msgid "Failed to upload APK"
+msgstr "上传 APK 失败"
+
+msgid "APK uploaded. Editing session created."
+msgstr "APK 已上传，编辑会话已创建。"
+
+msgid "Select APK"
+msgstr "选择 APK"
+
+msgid "Upload APK"
+msgstr "上传 APK"
+
 msgid "No active editor session"
 msgstr "没有活动的编辑会话"
 

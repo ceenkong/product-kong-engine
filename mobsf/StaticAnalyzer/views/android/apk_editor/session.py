@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from mobsf.MobSF.utils import is_md5
-from mobsf.StaticAnalyzer.models import ApkEditorSession, RecentScansDB
+from mobsf.StaticAnalyzer.models import ApkEditorSession
 from mobsf.StaticAnalyzer.views.android.apk_editor.command import (
     append_log,
     redact_text,
@@ -31,10 +31,6 @@ def new_session_id():
 def validate_source_apk(source_md5):
     if not is_md5(source_md5):
         raise ValueError('Invalid source hash')
-
-    scan = RecentScansDB.objects.filter(MD5=source_md5).first()
-    if not scan or scan.SCAN_TYPE != 'apk':
-        raise ValueError('APK scan not found')
 
     source_apk = Path(settings.UPLD_DIR) / source_md5 / f'{source_md5}.apk'
     if not source_apk.is_file():

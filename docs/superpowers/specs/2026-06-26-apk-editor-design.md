@@ -2,7 +2,7 @@
 
 ## 目标
 
-在 MobSF 里增加一套 APK 编辑流程。用户可以对某个已经上传并完成静态分析的 APK 进入“编辑状态”，在编辑状态里执行 Frida Gadget 注入和混淆操作，最后点击保存。
+在 MobSF 里增加一套独立的 APK 编辑流程。用户可以从顶部菜单进入“APK 编辑器”，直接上传 APK 并进入“编辑状态”，不需要先执行静态分析。在编辑状态里可以执行 Frida Gadget 注入和混淆操作，最后点击保存。
 
 保存时按编辑状态决定行为：
 
@@ -39,7 +39,7 @@
 
 ## 关键术语
 
-`source_md5` 是源 APK 的 MD5，也就是 MobSF 现有扫描记录使用的 checksum。
+`source_md5` 是源 APK 的 MD5。它可以来自 MobSF 现有扫描记录，也可以来自 APK 编辑器独立上传流程。
 
 现有源 APK 通常位于：
 
@@ -283,10 +283,20 @@ Frida 隐藏处理放到混淆的高级选项里。开启后可以把 gadget 文
 
 ## Web 页面
 
-在 Android APK 静态分析报告页增加一个“APK 编辑器”卡片。只对 APK 扫描显示，不对 so、jar、aar、zip 等类型显示。
+APK 编辑器有两个入口：
+
+- 顶部菜单里的全局入口“APK Editor”。这是主入口，用户不需要先扫描，进入后直接上传 APK，上传成功后创建编辑会话。
+- Android APK 静态分析报告页里的“APK 编辑器”卡片。这是兼容入口，只对 APK 报告显示，不对 so、jar、aar、zip 等类型显示。
 
 页面状态：
 
+- 独立页面未上传 APK：
+  - 显示 APK 上传控件。
+  - 禁用编辑操作按钮。
+- 上传 APK 成功：
+  - 保存源 APK 到 `uploads/<source_md5>/<source_md5>.apk`。
+  - 创建或复用当前源 APK 的 active 编辑会话。
+  - 启用 Frida Gadget 注入、混淆、保存、放弃编辑。
 - 没有 active 会话：
   - 显示“编辑 APK”。
 - active 会话：
@@ -301,7 +311,7 @@ Frida 隐藏处理放到混淆的高级选项里。开启后可以把 gadget 文
   - 显示“下载编辑后的 APK”。
   - 允许重新开始一次新的编辑。
 
-页面操作应该调用 REST API。这样页面行为和 API 行为保持一致，不做两套逻辑。
+页面操作应该复用同一套后端编辑服务。报告页入口通过 hash 开始编辑；独立页入口先上传 APK，再使用上传得到的 hash 和 session_id 继续操作。
 
 ## REST API
 
@@ -327,7 +337,7 @@ API 要求：
 
 - 复用 MobSF 现有 API key 和权限体系。
 - 编辑操作至少要求 scan 权限。
-- 校验 `hash` 必须是已存在的 APK 扫描。
+- 校验 `hash` 必须是合法 MD5，且 `uploads/<hash>/<hash>.apk` 必须存在。
 - 校验请求的 `session_id` 必须是当前 active 会话。
 - saved、discarded、closed_no_changes 状态不能继续执行编辑操作。
 - 返回结构化 JSON，包含状态、session state、操作摘要和安全错误信息。
@@ -420,12 +430,13 @@ mock 命令的集成测试：
 
 Docker 或手工验证：
 
-- 上传一个 APK。
-- 打开静态分析报告页。
-- 点击“编辑 APK”。
+- 从顶部菜单打开 APK Editor。
+- 直接上传一个 APK，不执行静态扫描。
+- 确认上传成功后进入编辑状态。
 - 注入 Frida Gadget。
 - 执行默认混淆。
 - 使用 debug 签名保存。
 - 下载编辑后的 APK。
+- 可选：打开静态分析报告页，确认报告页兼容入口仍然可用。
 - 确认系统没有自动重新扫描。
 - 确认没有任何操作时保存会删除临时 session 目录。

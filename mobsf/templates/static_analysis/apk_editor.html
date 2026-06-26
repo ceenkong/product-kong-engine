@@ -1,0 +1,22 @@
+{% extends "base/base_layout.html" %}
+{% load i18n %}
+
+{% block sidebar_option %}
+sidebar-collapse
+{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+  <section class="content-header">
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-12">
+          <h1>{% trans "APK Editor" %}</h1>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% include "static_analysis/android_apk_editor.html" %}
+</div>
+{% endblock %}
