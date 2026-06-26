@@ -1229,7 +1229,7 @@ git commit -m "feat: add apk editor report card"
 - Modify: `mobsf/static/others/js/apk_editor.js`
 - Modify: `mobsf/StaticAnalyzer/tests.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新增测试：
 
@@ -1278,7 +1278,7 @@ class ApkEditorFridaTests(TestCase):
         self.assertIn('loadLibrary', app_smali.read_text())
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1545,7 +1545,7 @@ git commit -m "feat: add frida gadget editor operation"
 - Modify: `mobsf/static/others/js/apk_editor.js`
 - Modify: `mobsf/StaticAnalyzer/tests.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新增测试：
 
@@ -1580,7 +1580,7 @@ class ApkEditorObfuscationTests(TestCase):
         self.assertTrue((paths.session_root / 'mapping/obfuscation.json').is_file())
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1590,7 +1590,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorObfuscationTests -v 2
 
 Expected: FAIL，错误包含 `No module named` 或 `cannot import name 'obfuscate_session'`。
 
-- [ ] **Step 3: 实现混淆核心**
+- [x] **Step 3: 实现混淆核心**
 
 创建 `obfuscation.py`：
 
@@ -1681,7 +1681,7 @@ def obfuscate_session(source_md5, session_id, options):
     }
 ```
 
-- [ ] **Step 4: 接入 API/Web/URL/JS**
+- [x] **Step 4: 接入 API/Web/URL/JS**
 
 在 `api.py` 增加 `api_obfuscate`，读取以下布尔参数：
 
@@ -1736,7 +1736,7 @@ options = {
   });
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run:
 
@@ -1746,7 +1746,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorObfuscationTests -v 2
 
 Expected: PASS，输出包含 `Ran 1 test` 和 `OK`。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add mobsf/StaticAnalyzer/views/android/apk_editor/obfuscation.py mobsf/StaticAnalyzer/views/android/apk_editor/api.py mobsf/StaticAnalyzer/views/android/apk_editor/web.py mobsf/MobSF/urls.py mobsf/static/others/js/apk_editor.js mobsf/StaticAnalyzer/tests.py

@@ -13,6 +13,9 @@ from mobsf.MobSF.views.authorization import (
 from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
     inject_frida_gadget,
 )
+from mobsf.StaticAnalyzer.views.android.apk_editor.obfuscation import (
+    obfuscate_session,
+)
 from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
     discard_session,
     get_editor_status,
@@ -115,5 +118,37 @@ def frida_gadget(request):
     try:
         abis = request.POST.getlist('abis') or None
         return JsonResponse(inject_frida_gadget(source_md5, session_id, abis))
+    except Exception as exp:
+        return handle_service_error(exp)
+
+
+def obfuscation_options(request):
+    return {
+        'smali': request.POST.get('smali') == '1',
+        'assets': request.POST.get('assets') == '1',
+        'resources': request.POST.get('resources') == '1',
+        'anti_analysis': request.POST.get('anti_analysis') == '1',
+        'frida_hide': request.POST.get('frida_hide') == '1',
+    }
+
+
+@csrf_protect
+@login_required
+@scan_permission_required
+@require_http_methods(['POST'])
+def obfuscate(request):
+    source_md5 = request.POST.get('hash')
+    session_id = request.POST.get('session_id')
+    if not source_md5:
+        return json_error('Missing hash', 422)
+    if not session_id:
+        return json_error('Missing session_id', 422)
+
+    try:
+        return JsonResponse(obfuscate_session(
+            source_md5,
+            session_id,
+            obfuscation_options(request),
+        ))
     except Exception as exp:
         return handle_service_error(exp)

@@ -133,6 +133,44 @@
     });
   });
 
+  obfuscateBtn.addEventListener('click', function () {
+    if (!sessionId) {
+      setStatus(message('msgNoSession', 'No active editor session'), 'warning');
+      return;
+    }
+    updateControls(true);
+    setStatus(message('msgObfuscating', 'Running obfuscation'), 'info');
+    postForm(root.dataset.obfuscateUrl, {
+      hash: sourceHash,
+      session_id: sessionId,
+      assets: '1',
+      anti_analysis: '1',
+      smali: '0',
+      resources: '0',
+      frida_hide: '0',
+    }).then((data) => {
+      if (data.status !== 'ok') {
+        setStatus(
+          data.error || message(
+            'msgObfuscateFailed',
+            'Failed to run obfuscation',
+          ),
+          'danger',
+        );
+        updateControls(false);
+        return;
+      }
+      setStatus(message('msgObfuscateDone', 'Obfuscation complete'), 'success');
+      updateControls(false);
+    }).catch(() => {
+      setStatus(
+        message('msgObfuscateFailed', 'Failed to run obfuscation'),
+        'danger',
+      );
+      updateControls(false);
+    });
+  });
+
   discardBtn.addEventListener('click', function () {
     if (!sessionId) {
       setStatus(message('msgNoSession', 'No active editor session'), 'warning');

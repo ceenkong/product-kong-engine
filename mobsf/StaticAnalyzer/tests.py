@@ -941,6 +941,53 @@ class ApkEditorEndpointTests(TestCase):
         self.assertEqual(json.loads(resp.content)['status'], 'failed')
         inject_mock.assert_not_called()
 
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.api.obfuscate_session')
+    def test_api_obfuscate_returns_operation_json(self, obfuscate_mock):
+        source_md5 = '4' * 32
+        obfuscate_mock.return_value = {
+            'status': 'ok',
+            'mapping': '/tmp/obfuscation.json',
+            'summary': {'assets': {}},
+        }
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/obfuscate',
+            {
+                'hash': source_md5,
+                'session_id': 'obf-session',
+                'assets': '1',
+                'anti_analysis': '1',
+            },
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(json.loads(resp.content)['status'], 'ok')
+        obfuscate_mock.assert_called_once_with(
+            source_md5,
+            'obf-session',
+            {
+                'smali': False,
+                'assets': True,
+                'resources': False,
+                'anti_analysis': True,
+                'frida_hide': False,
+            },
+        )
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.web.obfuscate_session')
+    def test_web_obfuscate_requires_session_id(self, obfuscate_mock):
+        self._login_superuser()
+
+        resp = self.http_client.post(
+            '/apk_editor/obfuscate/',
+            {'hash': '4' * 32},
+        )
+
+        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(json.loads(resp.content)['status'], 'failed')
+        obfuscate_mock.assert_not_called()
+
 
 class ApkEditorTemplateTests(TestCase):
     """APK editor template tests."""
@@ -972,6 +1019,7 @@ class ApkEditorTemplateTests(TestCase):
         self.assertIn('data-start-url="/apk_editor/start/"', html)
         self.assertIn('data-discard-url="/apk_editor/discard/"', html)
         self.assertIn('data-frida-url="/apk_editor/frida_gadget/"', html)
+        self.assertIn('data-obfuscate-url="/apk_editor/obfuscate/"', html)
         self.assertIn('others/js/apk_editor.js', html)
         self.assertIn('编辑 APK', html)
 
@@ -1055,6 +1103,86 @@ class ApkEditorFridaTests(TestCase):
         self.assertEqual(result['status'], 'ok')
         self.assertEqual(result['frida_gadget_injected'], True)
         self.assertIn('loadLibrary', app_smali.read_text(encoding='utf-8'))
+
+
+class ApkEditorObfuscationTests(TestCase):
+    """APK editor obfuscation tests."""
+
+    def _fresh_paths(self, source_md5, session_id):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        paths = editor_paths(source_md5, session_id)
+        shutil.rmtree(paths.session_root, ignore_errors=True)
+        self.addCleanup(
+            shutil.rmtree,
+            paths.session_root,
+            ignore_errors=True,
+        )
+        return paths
+
+    def test_obfuscate_assets_and_insert_noise_class(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.obfuscation import (
+            obfuscate_session,
+        )
+
+        source_md5 = '4' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='obf-session',
+        )
+        paths = self._fresh_paths(source_md5, session.session_id)
+        (paths.workspace / 'assets').mkdir(parents=True)
+        (paths.workspace / 'assets/config.json').write_text(
+            '{}',
+            encoding='utf-8',
+        )
+        (paths.workspace / 'smali/com/example').mkdir(parents=True)
+
+        result = obfuscate_session(source_md5, session.session_id, {
+            'assets': True,
+            'anti_analysis': True,
+            'smali': False,
+            'resources': False,
+            'frida_hide': False,
+        })
+
+        session.refresh_from_db()
+        self.assertTrue(session.dirty)
+        self.assertEqual(result['status'], 'ok')
+        self.assertTrue(
+            (paths.workspace / 'assets/a_config.json').is_file())
+        self.assertTrue(
+            (paths.workspace / 'smali/com/example/MobSFNoise.smali').is_file())
+        self.assertTrue(
+            (paths.session_root / 'mapping/obfuscation.json').is_file())
+
+    def test_obfuscate_without_selected_options_leaves_session_clean(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.obfuscation import (
+            obfuscate_session,
+        )
+
+        source_md5 = '5' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='obf-no-options',
+        )
+        self._fresh_paths(source_md5, session.session_id)
+
+        result = obfuscate_session(source_md5, session.session_id, {
+            'assets': False,
+            'anti_analysis': False,
+            'smali': False,
+            'resources': False,
+            'frida_hide': False,
+        })
+
+        session.refresh_from_db()
+        self.assertFalse(session.dirty)
+        self.assertFalse(result['changed'])
 
 
 class ApkEditorWorkspaceTests(TestCase):

@@ -265,3 +265,12 @@ msgstr "注入 Frida Gadget 失败"
 
 msgid "Frida Gadget injected"
 msgstr "Frida Gadget 已注入"
+
+msgid "Running obfuscation"
+msgstr "正在执行混淆"
+
+msgid "Failed to run obfuscation"
+msgstr "执行混淆失败"
+
+msgid "Obfuscation complete"
+msgstr "混淆已完成"
