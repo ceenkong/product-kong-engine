@@ -292,6 +292,7 @@ APK 编辑器只有一个主入口：
 
 - 独立页面未上传 APK：
   - 显示 APK 上传控件。
+  - 上传时显示上传进度百分比。
   - 禁用编辑操作按钮。
 - 上传 APK 成功：
   - 保存源 APK 到 `uploads/<source_md5>/<source_md5>.apk`。

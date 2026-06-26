@@ -8,6 +8,13 @@
   const uploadForm = document.getElementById('apk-editor-upload');
   const uploadInput = document.getElementById('apk-editor-file');
   const uploadButton = document.getElementById('apk-editor-upload-button');
+  const uploadProgress = document.getElementById('apk-editor-upload-progress');
+  const uploadProgressBar = document.getElementById(
+    'apk-editor-upload-progress-bar',
+  );
+  const uploadProgressText = document.getElementById(
+    'apk-editor-upload-progress-text',
+  );
   const statusBox = document.getElementById('apk-editor-status');
   const startBtn = document.getElementById('apk-editor-start');
   const fridaBtn = document.getElementById('apk-editor-frida');
@@ -49,6 +56,22 @@
   function setStatus(text, kind) {
     statusBox.className = `alert alert-${kind || 'secondary'}`;
     statusBox.textContent = text;
+  }
+
+  function setUploadProgress(percent, visible) {
+    const value = Math.max(0, Math.min(100, Math.round(percent || 0)));
+    const label = `${value}%`;
+    if (uploadProgress) {
+      uploadProgress.classList.toggle('d-none', !visible);
+    }
+    if (uploadProgressBar) {
+      uploadProgressBar.style.width = label;
+      uploadProgressBar.setAttribute('aria-valuenow', String(value));
+      uploadProgressBar.textContent = label;
+    }
+    if (uploadProgressText) {
+      uploadProgressText.textContent = label;
+    }
   }
 
   function updateControls(busy) {
@@ -122,6 +145,37 @@
     });
   }
 
+  function uploadApk(body, token) {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', root.dataset.uploadUrl);
+      request.setRequestHeader('X-CSRFToken', token);
+      request.upload.onprogress = function (event) {
+        if (event.lengthComputable) {
+          setUploadProgress((event.loaded / event.total) * 100, true);
+        }
+      };
+      request.onload = function () {
+        if (request.status < 200 || request.status >= 300) {
+          reject(new Error('Upload failed'));
+          return;
+        }
+        try {
+          resolve(JSON.parse(request.responseText || '{}'));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      request.onerror = function () {
+        reject(new Error('Upload failed'));
+      };
+      request.onabort = function () {
+        reject(new Error('Upload aborted'));
+      };
+      request.send(body);
+    });
+  }
+
   if (uploadInput) {
     uploadInput.addEventListener('change', function () {
       const fileName = uploadInput.files && uploadInput.files.length
@@ -133,6 +187,7 @@
       if (label && fileName) {
         label.textContent = fileName;
       }
+      setUploadProgress(0, false);
     });
   }
 
@@ -152,22 +207,18 @@
         uploadButton.disabled = true;
       }
       setStatus(message('msgUploading', 'Uploading APK'), 'info');
+      setUploadProgress(0, true);
 
       const token = csrfToken();
       const body = new FormData(uploadForm);
       body.set('csrfmiddlewaretoken', token);
-      fetch(root.dataset.uploadUrl, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': token,
-        },
-        body,
-      }).then((response) => response.json()).then((data) => {
+      uploadApk(body, token).then((data) => {
         if (data.status !== 'ok') {
           setStatus(
             data.error || message('msgUploadFailed', 'Failed to upload APK'),
             'danger',
           );
+          setUploadProgress(0, false);
           updateControls(false);
           if (uploadButton) {
             uploadButton.disabled = false;
@@ -179,6 +230,7 @@
         root.dataset.hash = sourceHash;
         savedDownloadUrl = '';
         sessionId = data.session_id;
+        setUploadProgress(100, true);
         setStatus(
           message(
             'msgUploadDone',
@@ -196,6 +248,7 @@
           message('msgUploadFailed', 'Failed to upload APK'),
           'danger',
         );
+        setUploadProgress(0, false);
         updateControls(false);
         if (uploadButton) {
           uploadButton.disabled = false;

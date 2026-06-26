@@ -790,8 +790,25 @@ class ApkEditorEndpointTests(TestCase):
         self.assertIn('APK Editor', html)
         self.assertIn('id="apk-editor-upload"', html)
         self.assertIn('data-upload-url="/apk_editor/upload/"', html)
+        self.assertIn('id="apk-editor-upload-progress"', html)
+        self.assertIn('id="apk-editor-upload-progress-bar"', html)
+        self.assertIn('id="apk-editor-upload-progress-text"', html)
         self.assertIn('id="apk-editor"', html)
         self.assertIn('others/js/apk_editor.js', html)
+
+    def test_apk_editor_upload_script_tracks_upload_progress(self):
+        script_path = (
+            Path(settings.BASE_DIR)
+            / 'static'
+            / 'others'
+            / 'js'
+            / 'apk_editor.js'
+        )
+        script = script_path.read_text(encoding='utf-8')
+
+        self.assertIn('new XMLHttpRequest()', script)
+        self.assertIn('.upload.onprogress', script)
+        self.assertIn('setUploadProgress', script)
 
     def test_nav_contains_global_apk_editor_link(self):
         self._login_superuser()
