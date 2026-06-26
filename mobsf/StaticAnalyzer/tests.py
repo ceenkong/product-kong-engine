@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import platform
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -898,6 +899,48 @@ class ApkEditorEndpointTests(TestCase):
             'discard-session',
         )
 
+    @patch(
+        'mobsf.StaticAnalyzer.views.android.apk_editor.api.inject_frida_gadget')
+    def test_api_frida_gadget_returns_operation_json(self, inject_mock):
+        source_md5 = '1' * 32
+        inject_mock.return_value = {
+            'status': 'ok',
+            'frida_gadget_injected': True,
+            'abis': ['arm64-v8a'],
+        }
+
+        resp = self.http_client.post(
+            '/api/v1/apk_editor/frida_gadget',
+            {
+                'hash': source_md5,
+                'session_id': 'frida-session',
+                'abis': ['arm64-v8a'],
+            },
+            HTTP_AUTHORIZATION=self.auth,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(json.loads(resp.content)['frida_gadget_injected'])
+        inject_mock.assert_called_once_with(
+            source_md5,
+            'frida-session',
+            ['arm64-v8a'],
+        )
+
+    @patch(
+        'mobsf.StaticAnalyzer.views.android.apk_editor.web.inject_frida_gadget')
+    def test_web_frida_gadget_requires_session_id(self, inject_mock):
+        self._login_superuser()
+
+        resp = self.http_client.post(
+            '/apk_editor/frida_gadget/',
+            {'hash': '1' * 32},
+        )
+
+        self.assertEqual(resp.status_code, 422)
+        self.assertEqual(json.loads(resp.content)['status'], 'failed')
+        inject_mock.assert_not_called()
+
 
 class ApkEditorTemplateTests(TestCase):
     """APK editor template tests."""
@@ -928,6 +971,7 @@ class ApkEditorTemplateTests(TestCase):
         self.assertIn('id="apk-editor"', html)
         self.assertIn('data-start-url="/apk_editor/start/"', html)
         self.assertIn('data-discard-url="/apk_editor/discard/"', html)
+        self.assertIn('data-frida-url="/apk_editor/frida_gadget/"', html)
         self.assertIn('others/js/apk_editor.js', html)
         self.assertIn('编辑 APK', html)
 
@@ -936,6 +980,81 @@ class ApkEditorTemplateTests(TestCase):
 
         self.assertNotIn('id="apk-editor"', html)
         self.assertNotIn('others/js/apk_editor.js', html)
+
+
+class ApkEditorFridaTests(TestCase):
+    """APK editor Frida Gadget tests."""
+
+    def _fresh_paths(self, source_md5, session_id):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+
+        paths = editor_paths(source_md5, session_id)
+        shutil.rmtree(paths.session_root, ignore_errors=True)
+        self.addCleanup(
+            shutil.rmtree,
+            paths.session_root,
+            ignore_errors=True,
+        )
+        return paths
+
+    def test_detect_abis_returns_existing_lib_dirs(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
+            detect_abis,
+        )
+
+        paths = self._fresh_paths('2' * 32, 'frida-abis')
+        (paths.workspace / 'lib/arm64-v8a').mkdir(parents=True)
+        (paths.workspace / 'lib/armeabi-v7a').mkdir(parents=True)
+
+        self.assertEqual(detect_abis(paths), ['arm64-v8a', 'armeabi-v7a'])
+
+    @patch('mobsf.StaticAnalyzer.views.android.apk_editor.frida.ensure_gadget')
+    def test_inject_frida_gadget_marks_session_dirty(self, ensure_gadget_mock):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.frida import (
+            inject_frida_gadget,
+        )
+
+        source_md5 = '3' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='frida-session',
+        )
+        paths = self._fresh_paths(source_md5, session.session_id)
+        (paths.workspace / 'smali/com/example').mkdir(parents=True)
+        (paths.workspace / 'AndroidManifest.xml').write_text(
+            '<manifest package="com.example">'
+            '<application android:name=".App"/>'
+            '</manifest>',
+            encoding='utf-8',
+        )
+        app_smali = paths.workspace / 'smali/com/example/App.smali'
+        app_smali.write_text(
+            '.class public Lcom/example/App;\n'
+            '.super Landroid/app/Application;\n'
+            '.method public onCreate()V\n'
+            '    .locals 0\n'
+            '    return-void\n'
+            '.end method\n',
+            encoding='utf-8',
+        )
+        ensure_gadget_mock.return_value = (
+            paths.workspace / 'lib/arm64-v8a/libfrida-gadget.so'
+        )
+
+        result = inject_frida_gadget(
+            source_md5,
+            session.session_id,
+            ['arm64-v8a'],
+        )
+
+        session.refresh_from_db()
+        self.assertTrue(session.dirty)
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['frida_gadget_injected'], True)
+        self.assertIn('loadLibrary', app_smali.read_text(encoding='utf-8'))
 
 
 class ApkEditorWorkspaceTests(TestCase):

@@ -8,12 +8,16 @@
              data-hash="{{ md5 }}"
              data-start-url="{% url 'apk_editor_start' %}"
              data-discard-url="{% url 'apk_editor_discard' %}"
+             data-frida-url="{% url 'apk_editor_frida_gadget' %}"
              data-msg-starting="{% trans 'Entering edit mode' %}"
              data-msg-start-failed="{% trans 'Failed to enter edit mode' %}"
              data-msg-editing="{% trans 'Editing. All operations will be saved to the current session.' %}"
              data-msg-no-session="{% trans 'No active editor session' %}"
              data-msg-discard-failed="{% trans 'Failed to discard edit session' %}"
-             data-msg-discarded="{% trans 'Edit session discarded' %}">
+             data-msg-discarded="{% trans 'Edit session discarded' %}"
+             data-msg-frida-starting="{% trans 'Injecting Frida Gadget' %}"
+             data-msg-frida-failed="{% trans 'Failed to inject Frida Gadget' %}"
+             data-msg-frida-done="{% trans 'Frida Gadget injected' %}">
           <div class="card-body">
             <p><strong><i class="fas fa-edit"></i> {% trans 'APK Editor' %}</strong></p>
             <div id="apk-editor-status" class="alert alert-secondary">

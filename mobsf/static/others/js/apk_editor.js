@@ -103,6 +103,36 @@
     });
   });
 
+  fridaBtn.addEventListener('click', function () {
+    if (!sessionId) {
+      setStatus(message('msgNoSession', 'No active editor session'), 'warning');
+      return;
+    }
+    updateControls(true);
+    setStatus(message('msgFridaStarting', 'Injecting Frida Gadget'), 'info');
+    postForm(root.dataset.fridaUrl, {
+      hash: sourceHash,
+      session_id: sessionId,
+    }).then((data) => {
+      if (data.status !== 'ok') {
+        setStatus(
+          data.error || message('msgFridaFailed', 'Failed to inject Frida Gadget'),
+          'danger',
+        );
+        updateControls(false);
+        return;
+      }
+      setStatus(message('msgFridaDone', 'Frida Gadget injected'), 'success');
+      updateControls(false);
+    }).catch(() => {
+      setStatus(
+        message('msgFridaFailed', 'Failed to inject Frida Gadget'),
+        'danger',
+      );
+      updateControls(false);
+    });
+  });
+
   discardBtn.addEventListener('click', function () {
     if (!sessionId) {
       setStatus(message('msgNoSession', 'No active editor session'), 'warning');

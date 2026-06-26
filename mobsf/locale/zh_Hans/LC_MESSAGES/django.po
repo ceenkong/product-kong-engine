@@ -256,3 +256,12 @@ msgstr "放弃编辑失败"
 
 msgid "Edit session discarded"
 msgstr "已放弃编辑"
+
+msgid "Injecting Frida Gadget"
+msgstr "正在注入 Frida Gadget"
+
+msgid "Failed to inject Frida Gadget"
+msgstr "注入 Frida Gadget 失败"
+
+msgid "Frida Gadget injected"
+msgstr "Frida Gadget 已注入"

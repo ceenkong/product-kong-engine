@@ -58,7 +58,7 @@ mobsf/StaticAnalyzer/views/android/apk_editor/
 - Create: `mobsf/StaticAnalyzer/views/android/apk_editor/paths.py`
 - Modify: `mobsf/StaticAnalyzer/tests.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `mobsf/StaticAnalyzer/tests.py` 末尾新增：
 
@@ -108,7 +108,7 @@ class ApkEditorModelAndPathTests(TestCase):
         self.assertEqual(session.last_error, '')
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1288,7 +1288,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorFridaTests -v 2
 
 Expected: FAIL，错误包含 `No module named` 或 `cannot import name 'inject_frida_gadget'`。
 
-- [ ] **Step 3: 实现 Frida 操作核心**
+- [x] **Step 3: 实现 Frida 操作核心**
 
 创建 `frida.py`：
 
@@ -1457,7 +1457,7 @@ def inject_frida_gadget(source_md5, session_id, abis=None):
     }
 ```
 
-- [ ] **Step 4: 接入 API/Web/URL/JS**
+- [x] **Step 4: 接入 API/Web/URL/JS**
 
 在 `api.py` 增加：
 
@@ -1516,7 +1516,7 @@ def api_frida_gadget(request):
   });
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run:
 
@@ -1526,7 +1526,7 @@ python manage.py test mobsf.StaticAnalyzer.tests.ApkEditorFridaTests -v 2
 
 Expected: PASS，输出包含 `Ran 2 tests` 和 `OK`。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add mobsf/StaticAnalyzer/views/android/apk_editor/frida.py mobsf/StaticAnalyzer/views/android/apk_editor/api.py mobsf/StaticAnalyzer/views/android/apk_editor/web.py mobsf/MobSF/urls.py mobsf/static/others/js/apk_editor.js mobsf/StaticAnalyzer/tests.py
