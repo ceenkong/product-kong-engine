@@ -832,3 +832,257 @@ class ApkEditorWorkspaceTests(TestCase):
                 self.assertTrue(all(isinstance(arg, str) for arg in run_args))
                 log_text = paths.log_file.read_text('utf-8')
                 self.assertIn('$ cat AndroidManifest.xml', log_text)
+
+
+class ApkEditorSessionServiceTests(TestCase):
+    """APK editor session service tests."""
+
+    def _create_source_apk(self, upload_dir, source_md5):
+        source_dir = Path(upload_dir) / source_md5
+        source_dir.mkdir(parents=True)
+        source_apk = source_dir / f'{source_md5}.apk'
+        source_apk.write_bytes(b'apk')
+        return source_apk
+
+    def _create_recent_scan(self, source_md5):
+        from mobsf.StaticAnalyzer.models import RecentScansDB
+
+        return RecentScansDB.objects.create(
+            MD5=source_md5,
+            SCAN_TYPE='apk',
+            FILE_NAME='demo.apk',
+        )
+
+    def test_start_session_creates_active_session(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_ACTIVE,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            start_session,
+        )
+
+        source_md5 = 'a' * 32
+        self._create_recent_scan(source_md5)
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                self._create_source_apk(upload_dir, source_md5)
+                with patch(
+                        'mobsf.StaticAnalyzer.views.android.'
+                        'apk_editor.session.decompile_apk') as decompile:
+                    result = start_session(source_md5)
+
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['hash'], source_md5)
+        self.assertEqual(result['state'], STATE_ACTIVE)
+        self.assertFalse(result['dirty'])
+        self.assertEqual(ApkEditorSession.objects.count(), 1)
+        decompile.assert_called_once()
+
+    def test_start_session_returns_existing_active_session(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_ACTIVE,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            start_session,
+        )
+
+        source_md5 = 'b' * 32
+        self._create_recent_scan(source_md5)
+        ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='existing-session',
+            state=STATE_ACTIVE,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                self._create_source_apk(upload_dir, source_md5)
+                with patch(
+                        'mobsf.StaticAnalyzer.views.android.'
+                        'apk_editor.session.decompile_apk') as decompile:
+                    first = start_session(source_md5)
+                    second = start_session(source_md5)
+
+        self.assertEqual(first['session_id'], 'existing-session')
+        self.assertEqual(second['session_id'], 'existing-session')
+        self.assertEqual(ApkEditorSession.objects.count(), 1)
+        decompile.assert_not_called()
+
+    def test_start_session_returns_existing_save_failed_session(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_SAVE_FAILED,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            start_session,
+        )
+
+        source_md5 = 'e' * 32
+        self._create_recent_scan(source_md5)
+        ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='save-failed-session',
+            state=STATE_SAVE_FAILED,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                self._create_source_apk(upload_dir, source_md5)
+                with patch(
+                        'mobsf.StaticAnalyzer.views.android.'
+                        'apk_editor.session.decompile_apk') as decompile:
+                    result = start_session(source_md5)
+
+        self.assertEqual(result['session_id'], 'save-failed-session')
+        self.assertEqual(result['state'], STATE_SAVE_FAILED)
+        self.assertEqual(ApkEditorSession.objects.count(), 1)
+        decompile.assert_not_called()
+
+    def test_require_active_session_accepts_save_failed_session(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_SAVE_FAILED,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            require_active_session,
+        )
+
+        source_md5 = 'f' * 32
+        session = ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id='save-failed-active-like',
+            state=STATE_SAVE_FAILED,
+        )
+
+        result = require_active_session(source_md5, session.session_id)
+
+        self.assertEqual(result, session)
+
+    def test_discard_session_marks_state_and_deletes_files(self):
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.constants import (
+            STATE_ACTIVE,
+            STATE_DISCARDED,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.paths import (
+            editor_paths,
+        )
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            discard_session,
+        )
+
+        source_md5 = 'c' * 32
+        session_id = 'discard-me'
+        ApkEditorSession.objects.create(
+            source_md5=source_md5,
+            session_id=session_id,
+            state=STATE_ACTIVE,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with self.settings(UPLD_DIR=upload_dir):
+                paths = editor_paths(source_md5, session_id)
+                paths.session_root.mkdir(parents=True)
+                result = discard_session(source_md5, session_id)
+
+                self.assertFalse(paths.session_root.exists())
+
+        session = ApkEditorSession.objects.get(session_id=session_id)
+        self.assertEqual(result['state'], STATE_DISCARDED)
+        self.assertEqual(session.state, STATE_DISCARDED)
+
+    def test_source_lock_rejects_invalid_hash_without_creating_paths(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.locks import (
+            source_lock,
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            escape_name = f'{Path(upload_dir).name}-escape'
+            escape_dir = Path(upload_dir).parent / escape_name
+            with self.settings(UPLD_DIR=upload_dir):
+                with self.assertRaises(ValueError):
+                    with source_lock('not-md5'):
+                        pass
+                with self.assertRaises(ValueError):
+                    with source_lock(f'../{escape_name}'):
+                        pass
+
+                self.assertEqual(list(Path(upload_dir).iterdir()), [])
+                self.assertFalse(escape_dir.exists())
+
+                with source_lock('1' * 32):
+                    pass
+                with self.assertRaises(ValueError):
+                    with source_lock('../escape'):
+                        pass
+
+                self.assertEqual(
+                    [path.name for path in Path(upload_dir).iterdir()],
+                    ['1' * 32],
+                )
+                self.assertFalse(escape_dir.exists())
+
+    def test_source_lock_replaces_stale_lock(self):
+        from mobsf.StaticAnalyzer.views.android.apk_editor.locks import (
+            source_lock,
+        )
+
+        source_md5 = '1' * 32
+        with tempfile.TemporaryDirectory() as upload_dir:
+            lock_file = (
+                Path(upload_dir)
+                / source_md5
+                / 'apk_editor'
+                / '.editor.lock'
+            )
+            lock_file.parent.mkdir(parents=True)
+            lock_file.write_text('1', encoding='utf-8')
+            old_time = 1
+            os.utime(lock_file, (old_time, old_time))
+
+            with self.settings(UPLD_DIR=upload_dir):
+                with source_lock(source_md5, timeout=1, stale_after=1):
+                    self.assertTrue(lock_file.exists())
+
+            self.assertFalse(lock_file.exists())
+
+    def test_mark_dirty_merges_metadata(self):
+        from django.utils import timezone
+
+        from mobsf.StaticAnalyzer.models import ApkEditorSession
+        from mobsf.StaticAnalyzer.views.android.apk_editor.session import (
+            mark_dirty,
+        )
+
+        old_updated_at = timezone.now()
+        session = ApkEditorSession.objects.create(
+            source_md5='d' * 32,
+            session_id='dirty-session',
+            dirty=False,
+            operation_metadata={'manifest': {'changed': True}},
+            updated_at=old_updated_at,
+        )
+
+        updated = mark_dirty(
+            session,
+            {
+                'manifest': {'label': 'Demo'},
+                'network': {'cleartext': False},
+            },
+        )
+
+        self.assertTrue(updated.dirty)
+        self.assertEqual(
+            updated.operation_metadata,
+            {
+                'manifest': {
+                    'changed': True,
+                    'label': 'Demo',
+                },
+                'network': {'cleartext': False},
+            },
+        )
+        self.assertGreater(updated.updated_at, old_updated_at)
